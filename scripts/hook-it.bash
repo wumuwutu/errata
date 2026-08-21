@@ -36,7 +36,8 @@ EOF
 printf '%s\n' \
   'false; echo "EC=$?"' \
   "python3 \"$TMP/fail.py\"" \
-  'echo hello-world' \
+  'true' \
+  "python3 -c 'print(1)'" \
   "python3 \"$TMP/fail.py\"" \
   'echo SESSION-DONE' \
   | bash --rcfile "$TMP/rc" -i >"$TMP/out.txt" 2>&1
@@ -58,7 +59,8 @@ fi
 check "hit hint shown" grep -q 'occurrence #2' "$TMP/out.txt"
 # 5. Session actually completed (hook did not hang the shell).
 check "session completed" grep -q 'SESSION-DONE' "$TMP/out.txt"
-# 6. Success detection: the success right after the failure nudges once.
+# 6. Success detection: same-program success nudges once; the unrelated
+#    'true' and the echo before SESSION-DONE must stay quiet.
 check "success hint shown" grep -q 'looks fixed' "$TMP/out.txt"
 hint_count=$(grep -c 'looks fixed' "$TMP/out.txt")
 check "success hint not repeated" test "$hint_count" -eq 1
@@ -71,7 +73,19 @@ printf '%s\n' \
 "$ERR" show 1 >"$TMP/show1b.txt" 2>&1
 check "ignore respected on hook path" grep -q '2 times' "$TMP/show1b.txt"
 "$ERR" ignore remove --command python3 >/dev/null 2>&1
-# 7. fish (and other shells) are rejected gracefully.
+# 8. Program gating in isolation: a fresh error, then only an unrelated
+#    program succeeds — no nudge (remind-once cannot mask this: this
+#    error was never reminded).
+cat > "$TMP/fail2.py" <<'PY'
+raise KeyError("missing_key")
+PY
+printf '%s\n' \
+  "python3 \"$TMP/fail2.py\"" \
+  "node -e 'console.log(1)'" \
+  'echo UNRELATED-DONE' \
+  | bash --rcfile "$TMP/rc" -i >"$TMP/out3.txt" 2>&1
+check "unrelated success stays quiet" bash -c "! grep -q 'looks fixed' '$TMP/out3.txt'"
+# 9. fish (and other shells) are rejected gracefully.
 fish_out=$("$ERR" init fish 2>"$TMP/fish.err")
 [ -z "$fish_out" ] && grep -q 'no shell hook' "$TMP/fish.err"
 check "fish rejected gracefully" test $? -eq 0

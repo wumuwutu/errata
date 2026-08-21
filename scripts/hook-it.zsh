@@ -37,7 +37,8 @@ EOF
 printf '%s\n' \
   'false; echo "EC=$?"' \
   "python3 \"$TMP/fail.py\"" \
-  'echo hello-world' \
+  'true' \
+  "python3 -c 'print(1)'" \
   "python3 \"$TMP/fail.py\"" \
   'echo SESSION-DONE' \
   | ZDOTDIR="$TMP/zdot" zsh -i >"$TMP/out.txt" 2>&1
@@ -59,7 +60,8 @@ fi
 check "hit hint shown" grep -q 'occurrence #2' "$TMP/out.txt"
 # 5. Session actually completed (hook did not hang the shell).
 check "session completed" grep -q 'SESSION-DONE' "$TMP/out.txt"
-# 6. Success detection: the success right after the failure nudges once.
+# 6. Success detection: same-program success nudges once; the unrelated
+#    'true' and the echo before SESSION-DONE must stay quiet.
 check "success hint shown" grep -q 'looks fixed' "$TMP/out.txt"
 hint_count=$(grep -c 'looks fixed' "$TMP/out.txt")
 check "success hint not repeated" test "$hint_count" -eq 1

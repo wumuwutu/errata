@@ -237,12 +237,12 @@ func TestRecentPendingInDir(t *testing.T) {
 
 	// Fresh pending error in the same dir qualifies.
 	got, err := s.RecentPendingInDir("/proj", now, window, remind)
-	if err != nil || got == nil || got.ID != id {
-		t.Fatalf("want error %d, got %+v err=%v", id, got, err)
+	if err != nil || len(got) != 1 || got[0].ID != id {
+		t.Fatalf("want [error %d], got %+v err=%v", id, got, err)
 	}
 
 	// Different directory does not.
-	if got, _ := s.RecentPendingInDir("/elsewhere", now, window, remind); got != nil {
+	if got, _ := s.RecentPendingInDir("/elsewhere", now, window, remind); len(got) != 0 {
 		t.Fatalf("wrong dir matched: %+v", got)
 	}
 
@@ -250,17 +250,17 @@ func TestRecentPendingInDir(t *testing.T) {
 	if err := s.MarkReminded(id, now); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := s.RecentPendingInDir("/proj", now, window, remind); got != nil {
+	if got, _ := s.RecentPendingInDir("/proj", now, window, remind); len(got) != 0 {
 		t.Fatal("reminded error must stay quiet")
 	}
 	// ...and speaks again once remindEvery has passed (huge window to
 	// isolate the remind logic from last_seen aging).
-	if got, _ := s.RecentPendingInDir("/proj", now.Add(2*remind), 10000*time.Hour, remind); got == nil {
+	if got, _ := s.RecentPendingInDir("/proj", now.Add(2*remind), 10000*time.Hour, remind); len(got) != 1 {
 		t.Fatal("after remindEvery the error should qualify again")
 	}
 
 	// Outside the success window it no longer qualifies.
-	if got, _ := s.RecentPendingInDir("/proj", now.Add(time.Hour), window, remind); got != nil {
+	if got, _ := s.RecentPendingInDir("/proj", now.Add(time.Hour), window, remind); len(got) != 0 {
 		t.Fatal("stale pending must not match the success window")
 	}
 
@@ -268,7 +268,7 @@ func TestRecentPendingInDir(t *testing.T) {
 	if err := s.AddFix(id, "done"); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := s.RecentPendingInDir("/proj", now, window, remind); got != nil {
+	if got, _ := s.RecentPendingInDir("/proj", now, window, remind); len(got) != 0 {
 		t.Fatal("resolved error must not match")
 	}
 }

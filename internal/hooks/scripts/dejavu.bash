@@ -43,7 +43,7 @@ __dejavu_prompt() {
     # DETECTED_SUCCESS). Cheap gate: no database file => nothing pending
     # => no subprocess, the prompt path stays at zero cost.
     [ -f "${XDG_DATA_HOME:-$HOME/.local/share}/dejavu/dejavu.db" ] || return "$ec"
-    err hook-event --exit-code 0 --cwd "$PWD" 2>/dev/null
+    err hook-event --exit-code 0 --cwd "$PWD" --command "$__dejavu_cmd" 2>/dev/null
     return "$ec"
   fi
   [ -n "$__dejavu_cmd" ] || return "$ec"

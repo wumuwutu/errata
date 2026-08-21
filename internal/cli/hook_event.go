@@ -32,7 +32,7 @@ var hookEventCmd = &cobra.Command{
 		// Success path (dev-guide §7.2 DETECTED_SUCCESS): the command
 		// after a failure may be the fix — nudge once, cheaply.
 		if hookEvent.exitCode == 0 {
-			solvedHint(hookEvent.cwd, os.Stdout)
+			solvedHint(hookEvent.cwd, hookEvent.command, os.Stdout)
 			return nil
 		}
 		if hookEvent.stderrFile == "" || hookEvent.command == "" {

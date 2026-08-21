@@ -51,9 +51,9 @@ func runWrapped(args []string) int {
 	}
 
 	if res.ExitCode == 0 {
-		// A successful wrapped command right after a failure is probably
-		// the fix — same DETECTED_SUCCESS nudge as the shell hook path.
-		solvedHint(cwd(), os.Stderr)
+		// A successful wrapped command right after a failure of the SAME
+		// program is probably the fix — the DETECTED_SUCCESS nudge.
+		solvedHint(cwd(), strings.Join(args, " "), os.Stderr)
 		return 0
 	}
 	if len(res.Stderr) == 0 {
