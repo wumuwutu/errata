@@ -9,6 +9,9 @@ import (
 
 	"github.com/wumuwutu/dejavu/internal/capture"
 	"github.com/wumuwutu/dejavu/internal/config"
+	"github.com/wumuwutu/dejavu/internal/fingerprint"
+	"github.com/wumuwutu/dejavu/internal/hint"
+	"github.com/wumuwutu/dejavu/internal/store"
 )
 
 var runCmd = &cobra.Command{
@@ -60,5 +63,65 @@ func runWrapped(args []string) int {
 		}
 	}
 
+	recordAndHint(args, res, cfg)
 	return res.ExitCode
+}
+
+// recordAndHint fingerprints a failed run, stores it, and prints the
+// restrained hit hint when the error (or a similar one) was seen before.
+// Recording must never break the run: any storage failure is silent and
+// the child's exit code is untouched.
+func recordAndHint(args []string, res *capture.Result, cfg *config.Config) {
+	lang, signature, fp := fingerprint.Fingerprint(string(res.Stderr))
+	if signature == "" {
+		return // not a recognizable Python/Node error: skip, never guess
+	}
+
+	dbPath, err := config.DBPath()
+	if err != nil {
+		return
+	}
+	st, err := store.Open(dbPath)
+	if err != nil {
+		return
+	}
+	defer st.Close() //nolint:errcheck // best-effort; process exits right after
+
+	scene := capture.Scene(args)
+	rec := &store.Error{
+		Fingerprint: fp,
+		Signature:   signature,
+		RawSample:   fingerprint.StripANSI(string(res.Stderr)),
+		Language:    lang,
+		Command:     scene.Command,
+		ProjectDir:  scene.Dir,
+		GitCommit:   scene.GitCommit,
+		Runtime:     scene.Runtime,
+		OS:          scene.OS,
+	}
+
+	// Match BEFORE upserting so the hint reflects prior knowledge.
+	existing, err := st.FindByFingerprint(fp)
+	if err != nil {
+		return
+	}
+
+	var hit *store.Error
+	similar := false
+	if existing != nil {
+		hit = existing
+		hit.Count++ // this occurrence included ("第N次")
+	} else {
+		if sim, _, serr := st.FindSimilar(fp, fingerprint.SimilarityThreshold); serr == nil && sim != nil {
+			hit, similar = sim, true
+		}
+	}
+
+	if _, _, err := st.UpsertError(rec); err != nil {
+		return
+	}
+
+	if hit != nil && cfg != nil && cfg.HintEnabled {
+		hint.PrintToStderr(hit, similar)
+	}
 }
