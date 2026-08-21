@@ -13,11 +13,21 @@ const (
 )
 
 var (
-	// Python: the final exception line, e.g. "TypeError: unsupported ..."
-	// or dotted "django.core.exceptions.ImproperlyConfigured: ...".
+	// Python, traceback present: the final exception line, e.g.
+	// "TypeError: unsupported ..." or dotted
+	// "django.core.exceptions.ImproperlyConfigured: ...".
 	pyExcRe = regexp.MustCompile(`^([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*):\s*(.*)$`)
+	// Python, no traceback (SyntaxError family): only names carrying a
+	// known exception suffix qualify, so prose like "Note: ..." never
+	// matches (precision-first, dev-guide §6.3).
+	pyTypedExcRe = regexp.MustCompile(`^([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*(?:Error|Exception|Warning|Interrupt|Exit|Iteration)):\s*(.*)$`)
 	// Bare exception with no message, e.g. "KeyboardInterrupt".
 	pyBareExcRe = regexp.MustCompile(`^([A-Za-z_]\w*(?:Error|Exception|Warning|Interrupt|Exit|Iteration))$`)
+	// SyntaxError-family proof: the 'File "...", line N' line that always
+	// accompanies the block. (The caret line is NOT proof — Node prints
+	// carets under source excerpts too.) Without it, a bare
+	// "SomeError: msg" line is not enough — other tools print those.
+	pyFileLineRe = regexp.MustCompile(`(?m)^\s*File ".*", line \d+`)
 
 	// Node: "TypeError: boom" or bare "Error: boom", confirmed by stack
 	// frames ("    at ...") so random prose never qualifies.
@@ -71,16 +81,31 @@ func ExtractSignatureWith(stderr string, disabled map[string]bool) (lang, signat
 	return LangUnknown, ""
 }
 
-// pythonSignature requires the traceback marker, then takes the LAST
-// exception line (the raised exception of a chained traceback is last).
+// pythonSignature has two paths:
+//   - traceback present: take the LAST "Name: message" line (the raised
+//     exception of a chained traceback is last); the marker makes any
+//     identifier-shaped name safe to accept.
+//   - no traceback: only the SyntaxError family block qualifies, proven
+//     by its 'File "...", line N' line, and the exception name must carry
+//     a known suffix (pyTypedExcRe). Both constraints together keep Node
+//     errors and prose out (precision-first, §6.3).
 func pythonSignature(text string, disabled map[string]bool) (string, bool) {
-	if !strings.Contains(text, "Traceback (most recent call last):") {
+	if strings.Contains(text, "Traceback (most recent call last):") {
+		return scanPythonException(text, pyExcRe, disabled)
+	}
+	if !pyFileLineRe.MatchString(text) {
 		return "", false
 	}
+	return scanPythonException(text, pyTypedExcRe, disabled)
+}
+
+// scanPythonException returns the last matching exception line as
+// "Name: <normalized message>", or ok=false when nothing qualifies.
+func scanPythonException(text string, re *regexp.Regexp, disabled map[string]bool) (string, bool) {
 	found := ""
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
-		if m := pyExcRe.FindStringSubmatch(line); m != nil {
+		if m := re.FindStringSubmatch(line); m != nil {
 			found = m[1] + ":" + messageTemplate(m[2], disabled)
 		} else if m := pyBareExcRe.FindStringSubmatch(line); m != nil {
 			found = m[1] + ":"

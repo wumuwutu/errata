@@ -188,8 +188,7 @@ RuntimeError: failed to start worker 12
 	}
 }
 
-func TestRegisterLanguageExtractor(t *testing.T) {
-	// A new language plugs in with one file and one Register call. The
+func TestRegisterLanguageExtractor(t *testing.T) { // A new language plugs in with one file and one Register call. The
 	// marker is deliberately unique so the registration cannot disturb
 	// the other tests' inputs.
 	Register("fake", func(text string, _ map[string]bool) (string, bool) {
@@ -208,5 +207,58 @@ func TestRegisterLanguageExtractor(t *testing.T) {
 	lang, _, _ = Fingerprint(pyTraceA)
 	if lang != LangPython {
 		t.Fatalf("python trace misrouted to %q", lang)
+	}
+}
+
+// SyntaxError-family output has no "Traceback" header.
+const pySyntaxErrA = `  File "/home/alice/proj/demo2.py", line 3
+    if i > 5
+            ^
+SyntaxError: expected ':'
+`
+
+// Same mistake, another machine: path, line number and caret column differ.
+const pySyntaxErrB = `  File "/opt/svc/jobs/report.py", line 88
+    if count > 10
+                ^
+SyntaxError: expected ':'
+`
+
+func TestPythonSyntaxErrorWithoutTraceback(t *testing.T) {
+	langA, sigA, fpA := Fingerprint(pySyntaxErrA)
+	langB, sigB, fpB := Fingerprint(pySyntaxErrB)
+	if langA != LangPython || langB != LangPython {
+		t.Fatalf("langs: %q %q", langA, langB)
+	}
+	if sigA != sigB || fpA != fpB {
+		t.Fatalf("syntax error fingerprint not stable:\nA=%q %s\nB=%q %s", sigA, fpA, sigB, fpB)
+	}
+	if sigA != "SyntaxError: expected <VAL>" {
+		t.Fatalf("sig = %q", sigA)
+	}
+}
+
+func TestPythonNoTracebackRejectsProse(t *testing.T) {
+	// Without a traceback header only suffix-typed names may match:
+	// "Note: ..." or "hint: ..." prose must not become an error.
+	cases := []string{
+		"Note: check your config\nHint: try again\n",
+		"warning: low disk space\n", // lowercase 'warning' has no suffix match
+		"Some prose: with colon\n",
+	}
+	for _, c := range cases {
+		if sig, ok := pythonSignature(StripANSI(c), nil); ok {
+			t.Errorf("pythonSignature(%q) = %q, want skip", c, sig)
+		}
+	}
+}
+
+func TestPythonTracebackPathUnchanged(t *testing.T) {
+	// With the marker present, non-suffixed dotted names still qualify
+	// (e.g. django.core.exceptions.ImproperlyConfigured).
+	raw := "Traceback (most recent call last):\n  File \"/x.py\", line 1, in <module>\ndjango.core.exceptions.ImproperlyConfigured: settings broken\n"
+	lang, sig, _ := Fingerprint(raw)
+	if lang != LangPython || sig != "django.core.exceptions.ImproperlyConfigured: settings broken" {
+		t.Fatalf("lang=%q sig=%q", lang, sig)
 	}
 }
