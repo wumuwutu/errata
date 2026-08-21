@@ -26,11 +26,19 @@ type Config struct {
 	// ArchiveAfterDays is the number of days after which a pending
 	// (unresolved) error is archived. 0 or negative disables archiving.
 	ArchiveAfterDays int
+	// SuccessWindowMinutes is how long after a failure a successful
+	// command in the same directory counts as "probably fixed it"
+	// (dev-guide §7.2). 0 or negative disables the success prompt.
+	SuccessWindowMinutes int
 }
 
 // DefaultArchiveAfterDays is the pending-error archival horizon (dev-guide
 // §7.5: archive after N days, never delete).
 const DefaultArchiveAfterDays = 30
+
+// DefaultSuccessWindowMinutes is the DETECTED_SUCCESS window (dev-guide
+// §7.2: 5 minutes).
+const DefaultSuccessWindowMinutes = 5
 
 // ConfigDir returns the config directory, honoring XDG_CONFIG_HOME.
 func ConfigDir() (string, error) {
@@ -95,16 +103,20 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	cfg := &Config{
-		IgnoreCommands:   v.GetStringSlice("ignore.commands"),
-		IgnoreDirs:       v.GetStringSlice("ignore.dirs"),
-		HintEnabled:      true,
-		ArchiveAfterDays: DefaultArchiveAfterDays,
+		IgnoreCommands:       v.GetStringSlice("ignore.commands"),
+		IgnoreDirs:           v.GetStringSlice("ignore.dirs"),
+		HintEnabled:          true,
+		ArchiveAfterDays:     DefaultArchiveAfterDays,
+		SuccessWindowMinutes: DefaultSuccessWindowMinutes,
 	}
 	if v.IsSet("hint.enabled") {
 		cfg.HintEnabled = v.GetBool("hint.enabled")
 	}
 	if v.IsSet("archive_after_days") {
 		cfg.ArchiveAfterDays = v.GetInt("archive_after_days")
+	}
+	if v.IsSet("success_window_minutes") {
+		cfg.SuccessWindowMinutes = v.GetInt("success_window_minutes")
 	}
 	return cfg, nil
 }

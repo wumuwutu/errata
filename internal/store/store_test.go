@@ -224,3 +224,51 @@ func TestArchiveStalePending(t *testing.T) {
 		t.Fatalf("re-archive: %d", archived)
 	}
 }
+
+func TestRecentPendingInDir(t *testing.T) {
+	s := openTemp(t)
+	now := time.Now()
+	window := 5 * time.Minute
+	remind := 24 * time.Hour
+
+	e := sample("00000000000000e1")
+	e.ProjectDir = "/proj"
+	id, _, _ := s.UpsertError(e)
+
+	// Fresh pending error in the same dir qualifies.
+	got, err := s.RecentPendingInDir("/proj", now, window, remind)
+	if err != nil || got == nil || got.ID != id {
+		t.Fatalf("want error %d, got %+v err=%v", id, got, err)
+	}
+
+	// Different directory does not.
+	if got, _ := s.RecentPendingInDir("/elsewhere", now, window, remind); got != nil {
+		t.Fatalf("wrong dir matched: %+v", got)
+	}
+
+	// After a reminder, the same error stays quiet for remindEvery...
+	if err := s.MarkReminded(id, now); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.RecentPendingInDir("/proj", now, window, remind); got != nil {
+		t.Fatal("reminded error must stay quiet")
+	}
+	// ...and speaks again once remindEvery has passed (huge window to
+	// isolate the remind logic from last_seen aging).
+	if got, _ := s.RecentPendingInDir("/proj", now.Add(2*remind), 10000*time.Hour, remind); got == nil {
+		t.Fatal("after remindEvery the error should qualify again")
+	}
+
+	// Outside the success window it no longer qualifies.
+	if got, _ := s.RecentPendingInDir("/proj", now.Add(time.Hour), window, remind); got != nil {
+		t.Fatal("stale pending must not match the success window")
+	}
+
+	// Resolved errors never qualify.
+	if err := s.AddFix(id, "done"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.RecentPendingInDir("/proj", now, window, remind); got != nil {
+		t.Fatal("resolved error must not match")
+	}
+}

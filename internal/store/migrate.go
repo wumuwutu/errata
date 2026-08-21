@@ -52,6 +52,10 @@ var migrations = []string{
 	CREATE INDEX IF NOT EXISTS idx_fixes_error ON fixes(error_id);
 
 	CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);`,
+
+	// 2: success-detection reminders (dev-guide §7.2 DETECTED_SUCCESS) —
+	// one nudge per error per 24h needs a persisted "last reminded" mark.
+	`ALTER TABLE pending ADD COLUMN reminded_at TIMESTAMP;`,
 }
 
 // migrate brings the database to the latest schema version, one migration

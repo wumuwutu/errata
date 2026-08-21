@@ -45,6 +45,17 @@ func Print(w io.Writer, rec *store.Error, similar bool) {
 	fmt.Fprintln(w, b.String())
 }
 
+// PrintSolved writes the one-line "did you just fix this?" nudge after a
+// successful command near a fresh pending error (dev-guide §7.2
+// DETECTED_SUCCESS). Gray, single line, never pushy.
+func PrintSolved(w io.Writer, e *store.Error) {
+	if e == nil {
+		return
+	}
+	fmt.Fprintf(w, "%s── err ── 刚才的 %s 好像解决了？err fix 记录解法%s\n",
+		gray, truncate(e.Signature), reset)
+}
+
 func shortenHome(dir string) string {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {

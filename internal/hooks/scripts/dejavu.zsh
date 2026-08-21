@@ -13,6 +13,9 @@
 
 command -v err >/dev/null 2>&1 || return 0
 
+# Marker for err doctor (hook loaded in this shell).
+export DEJAVU_HOOK=zsh
+
 __dejavu_dir="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/dejavu-$(id -u 2>/dev/null || echo u)"
 mkdir -p "$__dejavu_dir" 2>/dev/null && chmod 700 "$__dejavu_dir" 2>/dev/null
 __dejavu_sess="$__dejavu_dir/sess-$$"
@@ -27,8 +30,15 @@ __dejavu_preexec() {
 
 __dejavu_precmd() {
   local ec=$?
-  (( ec == 0 )) && return 0
   command -v err >/dev/null 2>&1 || return 0
+  if (( ec == 0 )); then
+    # Success: maybe a pending error just got fixed (dev-guide 7.2
+    # DETECTED_SUCCESS). Cheap gate: no database file => nothing pending
+    # => no subprocess, the prompt path stays at zero cost.
+    [[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/dejavu/dejavu.db" ]] || return 0
+    err hook-event --exit-code 0 --cwd "$PWD" 2>/dev/null
+    return 0
+  fi
   [[ -n "$__dejavu_cmd" ]] || return 0
   local size
   size=$(wc -c < "$__dejavu_sess.err" 2>/dev/null)

@@ -300,6 +300,43 @@ func (s *Store) ArchiveStalePending(cutoff time.Time) (int64, error) {
 	return int64(len(stale)), nil
 }
 
+// RecentPendingInDir returns the most recently seen pending error in dir
+// that is still inside the success window and has not had a "did you fix
+// it?" reminder within remindEvery (dev-guide §7.2 DETECTED_SUCCESS,
+// §9 restraint). (nil, nil) when nothing qualifies.
+func (s *Store) RecentPendingInDir(dir string, now time.Time, window, remindEvery time.Duration) (*Error, error) {
+	row := s.db.QueryRow(
+		`SELECT e.id, e.last_seen, COALESCE(p.reminded_at, '')
+		 FROM pending p JOIN errors e ON e.id = p.error_id
+		 WHERE p.status = 'pending' AND e.project_dir = ?
+		 ORDER BY e.last_seen DESC, p.id DESC LIMIT 1`, dir)
+	var id int64
+	var lastSeen, reminded string
+	if err := row.Scan(&id, &lastSeen, &reminded); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if t := parseTime(lastSeen); t.IsZero() || t.Before(now.Add(-window)) {
+		return nil, nil // too old: the success is probably unrelated
+	}
+	if reminded != "" {
+		if rt := parseTime(reminded); !rt.IsZero() && rt.After(now.Add(-remindEvery)) {
+			return nil, nil // reminded recently: don't nag
+		}
+	}
+	return s.Get(id)
+}
+
+// MarkReminded records that a success reminder was shown for the error.
+func (s *Store) MarkReminded(errorID int64, t time.Time) error {
+	_, err := s.db.Exec(
+		`UPDATE pending SET reminded_at = ? WHERE error_id = ? AND status = 'pending'`,
+		t.Format(timeLayout), errorID)
+	return err
+}
+
 const selectError = `
 SELECT e.id,
        COALESCE(e.fingerprint, ''), COALESCE(e.signature, ''),

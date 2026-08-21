@@ -58,7 +58,11 @@ fi
 check "hit hint shown" grep -q '遇到过此错误' "$TMP/out.txt"
 # 5. Session actually completed (hook did not hang the shell).
 check "session completed" grep -q 'SESSION-DONE' "$TMP/out.txt"
-# 6. The ignore blacklist applies on the hook path too.
+# 6. Success detection: the success right after the failure nudges once.
+check "success hint shown" grep -q '好像解决了' "$TMP/out.txt"
+hint_count=$(grep -c '好像解决了' "$TMP/out.txt")
+check "success hint not repeated" test "$hint_count" -eq 1
+# 7. The ignore blacklist applies on the hook path too.
 "$ERR" ignore add --command python3 >/dev/null 2>&1
 printf '%s\n' \
   "python3 \"$TMP/fail.py\"" \

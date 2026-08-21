@@ -29,7 +29,13 @@ var hookEventCmd = &cobra.Command{
 	Hidden: true,
 	Args:   cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if hookEvent.exitCode == 0 || hookEvent.stderrFile == "" || hookEvent.command == "" {
+		// Success path (dev-guide §7.2 DETECTED_SUCCESS): the command
+		// after a failure may be the fix — nudge once, cheaply.
+		if hookEvent.exitCode == 0 {
+			solvedHint(hookEvent.cwd, os.Stdout)
+			return nil
+		}
+		if hookEvent.stderrFile == "" || hookEvent.command == "" {
 			return nil
 		}
 
