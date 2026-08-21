@@ -26,6 +26,32 @@ var (
 	nodeFrame  = regexp.MustCompile(`(?m)^\s+at\s+\S`)
 )
 
+// Extractor pulls a normalized error signature out of ANSI-stripped
+// stderr text. ok=false means "not my language". Implementations must be
+// conservative — precision over recall (dev-guide §6.3): when unsure,
+// return ok=false and let the error go unrecorded.
+type Extractor func(text string, disabled map[string]bool) (signature string, ok bool)
+
+// registry holds the language extractors in probe order. Python comes
+// first: its traceback marker is unambiguous, while Node's stack frames
+// could appear in other tools' output.
+var registry = []struct {
+	lang string
+	ex   Extractor
+}{
+	{LangPython, pythonSignature},
+	{LangNode, nodeSignature},
+}
+
+// Register adds a language extractor. Supporting a new language is meant
+// to be one file (e.g. java.go) plus one Register call in its init().
+func Register(lang string, ex Extractor) {
+	registry = append(registry, struct {
+		lang string
+		ex   Extractor
+	}{lang, ex})
+}
+
 // ExtractSignature pulls a normalized error signature out of raw stderr.
 // It returns the detected language and the signature; an empty signature
 // means "not a recognizable Python/Node error" and the caller must skip it.
@@ -37,11 +63,10 @@ func ExtractSignature(stderr string) (lang, signature string) {
 // rules disabled (ablation runs in the eval toolchain).
 func ExtractSignatureWith(stderr string, disabled map[string]bool) (lang, signature string) {
 	text := StripANSI(stderr)
-	if sig, ok := pythonSignature(text, disabled); ok {
-		return LangPython, sig
-	}
-	if sig, ok := nodeSignature(text, disabled); ok {
-		return LangNode, sig
+	for _, r := range registry {
+		if sig, ok := r.ex(text, disabled); ok {
+			return r.lang, sig
+		}
 	}
 	return LangUnknown, ""
 }

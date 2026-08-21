@@ -187,3 +187,26 @@ RuntimeError: failed to start worker 12
 		t.Fatalf("sig = %q, want final RuntimeError", sig)
 	}
 }
+
+func TestRegisterLanguageExtractor(t *testing.T) {
+	// A new language plugs in with one file and one Register call. The
+	// marker is deliberately unique so the registration cannot disturb
+	// the other tests' inputs.
+	Register("fake", func(text string, _ map[string]bool) (string, bool) {
+		if strings.Contains(text, "FAKE-MAGIC") {
+			return "FakeError: something", true
+		}
+		return "", false
+	})
+
+	lang, sig, fp := Fingerprint("blah\nFAKE-MAGIC\nblah\n")
+	if lang != "fake" || sig != "FakeError: something" || fp == "" {
+		t.Fatalf("registered extractor: lang=%q sig=%q fp=%q", lang, sig, fp)
+	}
+
+	// Registered last = probed last: Python/Node still claim their own.
+	lang, _, _ = Fingerprint(pyTraceA)
+	if lang != LangPython {
+		t.Fatalf("python trace misrouted to %q", lang)
+	}
+}

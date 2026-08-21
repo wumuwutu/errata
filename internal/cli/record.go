@@ -8,6 +8,7 @@ import (
 	"github.com/wumuwutu/dejavu/internal/config"
 	"github.com/wumuwutu/dejavu/internal/fingerprint"
 	"github.com/wumuwutu/dejavu/internal/hint"
+	"github.com/wumuwutu/dejavu/internal/match"
 	"github.com/wumuwutu/dejavu/internal/store"
 )
 
@@ -53,21 +54,7 @@ func recordFailure(commandLine, dir string, stderr []byte, cfg *config.Config, h
 	}
 
 	// Match BEFORE upserting so the hint reflects prior knowledge.
-	existing, err := st.FindByFingerprint(fp)
-	if err != nil {
-		return
-	}
-
-	var hit *store.Error
-	similar := false
-	if existing != nil {
-		hit = existing
-		hit.Count++ // this occurrence included ("第N次")
-	} else {
-		if sim, _, serr := st.FindSimilar(fp, fingerprint.SimilarityThreshold); serr == nil && sim != nil {
-			hit, similar = sim, true
-		}
-	}
+	hit, similar := findHit(match.SimHash{Store: st}, fp)
 
 	if _, _, err := st.UpsertError(rec); err != nil {
 		return
@@ -76,6 +63,25 @@ func recordFailure(commandLine, dir string, stderr []byte, cfg *config.Config, h
 	if hit != nil && (cfg == nil || cfg.HintEnabled) {
 		hint.Print(hintOut, hit, similar)
 	}
+}
+
+// findHit consults the matcher: an exact hit wins; otherwise a similar
+// record is reported as a degraded match. The exact hit's count includes
+// this occurrence ("第N次") because the caller upserts right after.
+func findHit(m match.Matcher, fp string) (hit *store.Error, similar bool) {
+	exact, err := m.Exact(fp)
+	if err != nil {
+		return nil, false
+	}
+	if exact != nil {
+		exact.Count++
+		return exact, false
+	}
+	sim, err := m.Similar(fp)
+	if err != nil || sim == nil {
+		return nil, false
+	}
+	return sim, true
 }
 
 // firstWord returns the basename of the first word of a command line.
