@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -99,7 +100,15 @@ func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", path)
+	// WAL + busy_timeout: two terminals (hook-event, err run) can write
+	// concurrently; without them a second writer gets an immediate
+	// SQLITE_BUSY and the capture is silently lost.
+	dsn := url.URL{
+		Scheme:   "file",
+		Path:     path,
+		RawQuery: "_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)",
+	}
+	db, err := sql.Open("sqlite", dsn.String())
 	if err != nil {
 		return nil, err
 	}

@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/creack/pty"
 	"golang.org/x/term"
@@ -117,7 +118,9 @@ func Run(args []string) (*Result, error) {
 	_ = pty.InheritSize(sizeSrc, ptmx)
 	winch := make(chan os.Signal, 1)
 	signal.Notify(winch, syscall.SIGWINCH)
-	defer signal.Stop(winch)
+	// signal.Stop stops future sends; closing the channel then lets the
+	// relay goroutine exit with the command instead of lingering forever.
+	defer func() { signal.Stop(winch); close(winch) }()
 	go func() {
 		for range winch {
 			_ = pty.InheritSize(sizeSrc, ptmx)
@@ -147,9 +150,21 @@ func Run(args []string) (*Result, error) {
 	closeTTY()
 
 	if stdinIsTTY {
-		// Pump keystrokes into the PTY; with piped stdin the child reads
-		// the pipe directly, so no pump is needed (and EOF just works).
-		go func() { _, _ = io.Copy(ptmx, os.Stdin) }() // stdin -> PTY
+		// Put stdin in non-blocking mode so the pump can notice the done
+		// channel even when no input arrives — a blocking Read on a
+		// terminal cannot be interrupted portably. Restored on return
+		// (the flag lives on the open file description shared with the
+		// invoking shell, so failing to restore would leak into it).
+		fd := int(os.Stdin.Fd())
+		if err := syscall.SetNonblock(fd, true); err == nil {
+			defer syscall.SetNonblock(fd, false) //nolint:errcheck
+			pumpDone := make(chan struct{})
+			defer close(pumpDone)
+			go pumpStdin(ptmx, pumpDone)
+		} else {
+			// Fall back to a plain pump; it exits with the process.
+			go func() { _, _ = io.Copy(ptmx, os.Stdin) }()
+		}
 	}
 	outDone := make(chan struct{})
 	go func() {
@@ -175,4 +190,32 @@ func Run(args []string) (*Result, error) {
 		}
 	}
 	return res, nil
+}
+
+// pumpStdin copies keystrokes into the PTY until done is closed. It relies
+// on stdin being non-blocking (set by Run): EAGAIN means "no input right
+// now", so the pump can poll done between reads instead of blocking on a
+// terminal Read forever.
+func pumpStdin(ptmx *os.File, done <-chan struct{}) {
+	buf := make([]byte, 1024)
+	for {
+		n, err := os.Stdin.Read(buf)
+		if n > 0 {
+			if _, werr := ptmx.Write(buf[:n]); werr != nil {
+				return
+			}
+		}
+		if err == nil {
+			continue
+		}
+		if errors.Is(err, syscall.EAGAIN) {
+			select {
+			case <-done:
+				return
+			case <-time.After(5 * time.Millisecond):
+			}
+			continue
+		}
+		return
+	}
 }

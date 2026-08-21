@@ -1,8 +1,10 @@
 package capture
 
 import (
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRunCapturesStderrAndExitCode(t *testing.T) {
@@ -50,4 +52,22 @@ func TestScene(t *testing.T) {
 	if ctx.Runtime == "" {
 		t.Skip("python3 not installed; probe skipped")
 	}
+}
+
+// TestRunLeavesNoGoroutines guards the Run lifecycle fix: the SIGWINCH
+// relay (and any pump) must exit with the command, not linger.
+func TestRunLeavesNoGoroutines(t *testing.T) {
+	before := runtime.NumGoroutine()
+	if _, err := Run([]string{"true"}); err != nil {
+		t.Fatal(err)
+	}
+	// The relay goroutine exits on channel close; allow a moment.
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if runtime.NumGoroutine() <= before {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("goroutines leaked: before=%d after=%d", before, runtime.NumGoroutine())
 }

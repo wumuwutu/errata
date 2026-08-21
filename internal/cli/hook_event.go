@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/wumuwutu/dejavu/internal/config"
+	"github.com/wumuwutu/dejavu/internal/hooks"
 )
 
 var hookEvent struct {
@@ -30,6 +32,10 @@ var hookEventCmd = &cobra.Command{
 		if hookEvent.exitCode == 0 || hookEvent.stderrFile == "" || hookEvent.command == "" {
 			return nil
 		}
+
+		// Housekeeping on the error path only: drop week-old session
+		// buffers so they don't pile up.
+		hooks.CleanStaleSessions(filepath.Dir(hookEvent.stderrFile), time.Now()) //nolint:errcheck
 
 		delta := readStderrDelta(hookEvent.stderrFile, hookEvent.offset)
 		if len(bytes.TrimSpace(delta)) == 0 {
