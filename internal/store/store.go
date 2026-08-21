@@ -300,6 +300,24 @@ func (s *Store) ArchiveStalePending(cutoff time.Time) (int64, error) {
 	return int64(len(stale)), nil
 }
 
+// ListAll returns every error record, most recently seen first.
+func (s *Store) ListAll() ([]Error, error) {
+	rows, err := s.db.Query(selectError + ` ORDER BY e.last_seen DESC, e.id DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Error
+	for rows.Next() {
+		e, err := scanError(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *e)
+	}
+	return out, rows.Err()
+}
+
 // RecentPendingInDir returns the most recently seen pending error in dir
 // that is still inside the success window and has not had a "did you fix
 // it?" reminder within remindEvery (dev-guide §7.2 DETECTED_SUCCESS,
