@@ -52,8 +52,23 @@ err fix -m "LD_LIBRARY_PATH was polluted by conda; conda deactivate and reinstal
 # List errors you haven't written a solution for, plus your record rate:
 err pending
 
-# Record a solution for a specific error:
+# Record a solution for a specific error (fix always shows the target first):
 err fix 3 -m "pin torch==2.1 in requirements.txt"
+
+# Browse everything in a TUI (plain table when piped):
+err list
+
+# Distribution, most repeated errors, weekly trend, record rate:
+err stats
+
+# Every pit one project put you through, oldest first:
+err history --project ~/projects/api
+
+# Self-check (db, hook installation, prompt latency budget):
+err doctor
+
+# Precise removal of shell hooks; data kept unless --purge:
+err uninstall
 
 # Inspect any recorded error:
 err show 3
@@ -68,6 +83,10 @@ err ignore remove --command npm
 `err run` always exits with the wrapped command's exit code. Pending errors older than
 `archive_after_days` (default 30, set in `~/.config/dejavu/config.yaml`) are archived
 automatically — never deleted, just out of the pending queue.
+
+When a command succeeds within `success_window_minutes` (default 5) after a pending error
+in the same directory, err prints a single gray line — "looks like you just fixed
+<signature>? `err fix` to record the solution" — at most once per error per day.
 
 ## How it works
 
@@ -97,7 +116,9 @@ Deliberately small:
 
 - Python and Node errors only (other languages are skipped silently).
 - Capture via the shell hook (zsh/bash) and `err run`.
-- No TUI, LLM features, stats/report/doctor/watch/mcp yet.
+- No LLM features, reports, watch or MCP yet.
+
+Internals for contributors: [docs/architecture.md](docs/architecture.md).
 
 ## Fingerprint evaluation
 
@@ -117,11 +138,13 @@ Corpus format and annotation guide: [docs/eval.md](docs/eval.md). Sample corpus:
 ```
 cmd/err/              main package (binary name: err)
 cmd/err-eval/         fingerprint evaluation tool (separate binary)
-internal/cli/         cobra commands (run / fix / show / pending / ignore / init)
+internal/cli/         cobra commands (run / fix / show / pending / list / stats /
+                      history / ignore / init / doctor / uninstall + hidden hook-event)
 internal/capture/     PTY passthrough executor + scene capture
 internal/hooks/       embedded zsh/bash hook scripts + rc writer
 internal/fingerprint/ ANSI strip, normalization, signature extraction, SimHash
 internal/match/       the Matcher interface (SimHash today, embedding later)
+internal/list/        err list TUI model (pure, unit-tested update logic)
 internal/eval/        corpus loading + pairwise precision/recall evaluation
 internal/store/       SQLite (errors / fixes / pending + FTS5)
 internal/hint/        the restrained gray hit hint
