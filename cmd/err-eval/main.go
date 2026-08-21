@@ -45,7 +45,7 @@ func main() {
 			recognized++
 		}
 	}
-	fmt.Printf("corpus: %d entries, %d error groups, %d recognized (pipeline v1: python+node)\n",
+	fmt.Printf("corpus: %d entries, %d error groups, %d recognized (python+node precise, generic fallback)\n",
 		len(entries), len(groups), recognized)
 	if len(disabled) > 0 {
 		fmt.Printf("ablation: disabled rules: %s\n", *disable)

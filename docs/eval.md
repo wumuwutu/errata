@@ -14,7 +14,7 @@
 ```
 
 - `raw`：完整的 stderr 文本（traceback / 堆栈原样保留，包括路径、行号）。
-- `language`：标注语言。MVP 只支持 `python` / `node`。
+- `language`：标注语言。`python` / `node` 走精确提取器；其余语言的错误若含明确错误标记（`Exception in thread`、`error:`、`panic:`、`command not found` 等）会由保底提取器以 `unknown` 记录。
 - `group`：**人工标注**的"同错组"。判断标准：两条报错如果是"同一个问题、换台机器/换个时间还会认成同一个"，就同组。路径、行号、PID、时间戳、引号内的值不同 → 仍然同组；异常类型或消息模板不同 → 不同组。
 
 ## 标注方法

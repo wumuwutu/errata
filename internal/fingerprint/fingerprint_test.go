@@ -131,10 +131,11 @@ func TestDifferentErrorsDifferentFingerprints(t *testing.T) {
 }
 
 func TestUnknownLanguageSkipped(t *testing.T) {
+	// Output without any unambiguous error marker is skipped (the
+	// marker-carrying cases live in generic_test.go's hit table).
 	cases := []string{
-		"bash: foo: command not found\n",
-		"gcc: error: unrecognized command-line option '-x'\n",
 		"Some random prose: with a colon, no traceback.\n",
+		"warning: something mildly interesting\n",
 		"",
 	}
 	for _, c := range cases {

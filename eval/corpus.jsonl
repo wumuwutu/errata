@@ -17,3 +17,11 @@
 {"raw": "/home/alice/web/app.js:5\nconst data = {]}\n             ^\n\nSyntaxError: Unexpected token ']'\n    at wrapSafe (node:internal/modules/cjs/loader:1281:20)\n    at Module._compile (node:internal/modules/cjs/loader:1321:27)\n", "language": "node", "group": "node-syntax-unexpected"}
 {"raw": "Error: connect ECONNREFUSED 127.0.0.1:5432\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1278:16)\n", "language": "node", "group": "node-econnrefused"}
 {"raw": "Error: connect ECONNREFUSED 192.168.1.10:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1278:16)\n", "language": "node", "group": "node-econnrefused"}
+{"raw": "  File \"/home/alice/proj/demo2.py\", line 3\n    if i > 5\n            ^\nSyntaxError: expected ':'\n", "language": "python", "group": "py-syntax-expected-colon"}
+{"raw": "  File \"/opt/svc/jobs/report.py\", line 88\n    if count > 10\n                ^\nSyntaxError: expected ':'\n", "language": "python", "group": "py-syntax-expected-colon"}
+{"raw": "Exception in thread \"main\" java.lang.NullPointerException: Cannot read field \"timeout\" because \"config\" is null\n\tat com.app.Main.main(Main.java:12)\n", "language": "unknown", "group": "java-npe"}
+{"raw": "Exception in thread \"worker-3\" java.lang.NullPointerException: Cannot read field \"retries\" because \"settings\" is null\n\tat com.app.Worker.run(Worker.java:88)\n", "language": "unknown", "group": "java-npe"}
+{"raw": "main.c:12:5: error: 'foo' undeclared (first use in this function)\n", "language": "unknown", "group": "gcc-undeclared"}
+{"raw": "main.c:47:2: error: 'foo' undeclared (first use in this function)\n", "language": "unknown", "group": "gcc-undeclared"}
+{"raw": "bash[1234]: pyhton: command not found\n", "language": "unknown", "group": "shell-cmdnotfound"}
+{"raw": "bash[9871]: pyhton: command not found\n", "language": "unknown", "group": "shell-cmdnotfound"}
