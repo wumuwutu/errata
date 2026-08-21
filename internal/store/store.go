@@ -49,47 +49,6 @@ type Pending struct {
 	Status     string
 }
 
-const schema = `
-CREATE TABLE IF NOT EXISTS errors (
-  id INTEGER PRIMARY KEY,
-  fingerprint TEXT UNIQUE,
-  signature TEXT,
-  raw_sample TEXT,
-  language TEXT,
-  command TEXT,
-  project_dir TEXT,
-  git_commit TEXT,
-  runtime TEXT,
-  os TEXT,
-  created_at TIMESTAMP,
-  first_seen TIMESTAMP,
-  last_seen TIMESTAMP,
-  count INTEGER DEFAULT 1
-);
-
-CREATE TABLE IF NOT EXISTS fixes (
-  id INTEGER PRIMARY KEY,
-  error_id INTEGER REFERENCES errors(id),
-  solution TEXT,
-  draft TEXT,
-  commands_between TEXT,
-  git_diff_ref TEXT,
-  created_at TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS pending (
-  id INTEGER PRIMARY KEY,
-  error_id INTEGER REFERENCES errors(id),
-  detected_at TIMESTAMP,
-  status TEXT
-);
-
-CREATE VIRTUAL TABLE IF NOT EXISTS errors_fts USING fts5(signature, solution);
-
-CREATE INDEX IF NOT EXISTS idx_pending_status ON pending(status);
-CREATE INDEX IF NOT EXISTS idx_fixes_error ON fixes(error_id);
-`
-
 // Store wraps the SQLite handle.
 type Store struct {
 	db *sql.DB
@@ -112,7 +71,7 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := db.Exec(schema); err != nil {
+	if err := migrate(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("init schema: %w", err)
 	}
@@ -344,9 +303,13 @@ func (s *Store) ArchiveStalePending(cutoff time.Time) (int64, error) {
 }
 
 const selectError = `
-SELECT e.id, e.fingerprint, e.signature, e.raw_sample, e.language, e.command,
-       e.project_dir, e.git_commit, e.runtime, e.os,
-       e.created_at, e.first_seen, e.last_seen, e.count,
+SELECT e.id,
+       COALESCE(e.fingerprint, ''), COALESCE(e.signature, ''),
+       COALESCE(e.raw_sample, ''), COALESCE(e.language, ''),
+       COALESCE(e.command, ''), COALESCE(e.project_dir, ''),
+       COALESCE(e.git_commit, ''), COALESCE(e.runtime, ''), COALESCE(e.os, ''),
+       COALESCE(e.created_at, ''), COALESCE(e.first_seen, ''),
+       COALESCE(e.last_seen, ''), COALESCE(e.count, 0),
        COALESCE((SELECT f.solution FROM fixes f WHERE f.error_id = e.id
                  ORDER BY f.id DESC LIMIT 1), ''),
        COALESCE((SELECT p.status FROM pending p WHERE p.error_id = e.id
