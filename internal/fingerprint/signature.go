@@ -62,11 +62,11 @@ func Register(lang string, ex Extractor) {
 	}{lang, ex})
 }
 
-// ExtractSignature pulls a normalized error signature out of raw stderr.
-// It returns the detected language and the signature; an empty signature
-// means "not a recognizable Python/Node error" and the caller must skip it.
+// ExtractSignature pulls a normalized error signature out of raw stderr,
+// using the production rule set (DefaultDisabledRules). An empty signature
+// means "no recognizable error marker" and the caller must skip it.
 func ExtractSignature(stderr string) (lang, signature string) {
-	return ExtractSignatureWith(stderr, nil)
+	return ExtractSignatureWith(stderr, DefaultDisabledRules)
 }
 
 // ExtractSignatureWith is ExtractSignature with selected normalization

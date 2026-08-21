@@ -3,11 +3,12 @@ package fingerprint
 import "fmt"
 
 // Fingerprint runs the full v1 pipeline on raw stderr: strip ANSI, extract
-// the Python/Node error signature, and hash it. An empty signature (and
-// hex) means the output is not a recognizable Python/Node error and must
-// be skipped (precision-first: never guess).
+// the error signature with the production rule set (quoted values kept,
+// see DefaultDisabledRules), and hash it. An empty signature (and hex)
+// means the output carries no recognizable error marker and must be
+// skipped (precision-first: never guess).
 func Fingerprint(stderr string) (lang, signature, hex string) {
-	return FingerprintWith(stderr, nil)
+	return FingerprintWith(stderr, DefaultDisabledRules)
 }
 
 // FingerprintWith is Fingerprint with selected normalization rules

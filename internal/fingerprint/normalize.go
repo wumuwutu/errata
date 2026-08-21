@@ -42,17 +42,27 @@ func StripANSI(s string) string {
 // eval toolchain for ablation runs (dev-guide §6.4).
 var RuleNames = []string{"uuid", "ts", "ip", "addr", "path", "val", "num"}
 
+// DefaultDisabledRules are rules the production pipeline leaves off.
+// "val" is off: the quoted value IS the error's identity — with it
+// blanked, "No module named 'numpy'" and "'torch'" collapse into one
+// fingerprint and the wrong fix would be served (precision red line,
+// dev-guide §6.3/§9). The rule code stays for ablation runs.
+var DefaultDisabledRules = map[string]bool{"val": true}
+
 // Normalize rewrites volatile fragments of s into stable placeholders:
 //
 //	UUID → <UUID>, timestamps → <TS>, IP addresses → <IP>,
 //	hex addresses → <ADDR>, absolute paths → <PATH>,
-//	quoted values → <VAL>, remaining numbers → <N>
+//	remaining numbers → <N>
+//
+// Quoted values are kept (see DefaultDisabledRules).
 func Normalize(s string) string {
-	return NormalizeWith(s, nil)
+	return NormalizeWith(s, DefaultDisabledRules)
 }
 
-// NormalizeWith is Normalize with selected rules disabled (ablation).
-// disabled maps rule names (see RuleNames) to true.
+// NormalizeWith applies the full rule set minus the given rules
+// (ablation). Pass DefaultDisabledRules for production behavior, nil for
+// everything on.
 func NormalizeWith(s string, disabled map[string]bool) string {
 	off := func(rule string) bool { return disabled[rule] }
 	if !off("uuid") {

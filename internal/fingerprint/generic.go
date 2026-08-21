@@ -27,6 +27,11 @@ var genericMarkers = []*regexp.Regexp{
 	regexp.MustCompile(`\bPermission denied\b`),
 }
 
+// threadRe targets the one quoted-but-volatile value in the generic
+// markers: the thread name in Java's "Exception in thread" line is noise,
+// unlike quoted values elsewhere which carry error identity.
+var threadRe = regexp.MustCompile(`(?i)\bException in thread\s+"[^"]*"`)
+
 // genericSignature is the fallback extractor: registered last, it claims
 // output no language extractor recognized, but only when a line carries an
 // unambiguous error marker. The signature is the last matching line,
@@ -40,6 +45,7 @@ func genericSignature(text string, disabled map[string]bool) (string, bool) {
 		}
 		for _, re := range genericMarkers {
 			if re.MatchString(line) {
+				line = threadRe.ReplaceAllString(line, "Exception in thread <THREAD>")
 				found = NormalizeWith(line, disabled)
 				break
 			}

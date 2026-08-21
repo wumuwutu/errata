@@ -9,11 +9,11 @@ func TestGenericFallbackHits(t *testing.T) {
 		want string // normalized signature
 	}{
 		{"java npe", "Exception in thread \"main\" java.lang.NullPointerException: Cannot read field \"x\" because \"cfg\" is null\n\tat com.app.Main.main(Main.java:12)\n",
-			"Exception in thread <VAL> java.lang.NullPointerException: Cannot read field <VAL> because <VAL> is null"},
+			"Exception in thread <THREAD> java.lang.NullPointerException: Cannot read field \"x\" because \"cfg\" is null"},
 		{"gcc", "main.c:12:5: error: 'foo' undeclared (first use in this function)\n",
-			"main.c:<N>:<N>: error: <VAL> undeclared (first use in this function)"},
+			"main.c:<N>:<N>: error: 'foo' undeclared (first use in this function)"},
 		{"gcc tool-prefixed", "gcc: error: unrecognized command-line option '-x'\n",
-			"gcc: error: unrecognized command-line option <VAL>"},
+			"gcc: error: unrecognized command-line option '-x'"},
 		{"shell command not found", "bash[1234]: pyhton: command not found\n",
 			"bash[<N>]: pyhton: command not found"},
 		{"permission denied", "bash: /etc/shadow: Permission denied\n",

@@ -4,10 +4,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/wumuwutu/dejavu/internal/fingerprint"
 )
 
 const pyA1 = "Traceback (most recent call last):\n  File \"/home/a/x.py\", line 1, in <module>\nTypeError: boom 'x'\n"
-const pyA2 = "Traceback (most recent call last):\n  File \"/opt/b/y.py\", line 99, in <module>\nTypeError: boom 'y'\n"
+const pyA2 = "Traceback (most recent call last):\n  File \"/opt/b/y.py\", line 99, in <module>\nTypeError: boom 'x'\n"
 const pyB = "Traceback (most recent call last):\n  File \"/home/a/x.py\", line 1, in <module>\nKeyError: 'missing'\n"
 const junk = "gcc: something failed\n"
 
@@ -62,34 +64,21 @@ func TestEvaluateHighThresholdCollapsesEverything(t *testing.T) {
 	}
 }
 
-func TestAblationDisablingPathRule(t *testing.T) {
-	// Same error, different file path only.
-	a := "Traceback (most recent call last):\n  File \"/home/a/x.py\", line 1, in <module>\nValueError: bad\n"
-	b := "Traceback (most recent call last):\n  File \"/opt/other/x.py\", line 1, in <module>\nValueError: bad\n"
-	entries := []Entry{{Raw: a, Group: "g1"}, {Raw: b, Group: "g1"}}
+func TestAblationValRule(t *testing.T) {
+	// Same error differing only in a quoted value: with production rules
+	// (val OFF) they stay distinct; enabling val merges them. This is the
+	// precision/recall trade the default makes.
+	a := "Traceback (most recent call last):\n  File \"/x.py\", line 1, in <module>\nKeyError: 'alpha'\n"
+	b := "Traceback (most recent call last):\n  File \"/x.py\", line 1, in <module>\nKeyError: 'beta'\n"
+	entries := []Entry{{Raw: a, Group: "g1"}, {Raw: b, Group: "g2"}} // different groups now
 
-	withRules := Evaluate(entries, nil, 0)[0]
-	if withRules.TP != 1 {
-		t.Fatalf("full pipeline: TP=%d, want 1 (path normalized away)", withRules.TP)
+	prod := Evaluate(entries, fingerprint.DefaultDisabledRules, 0)[0]
+	if prod.FP != 0 {
+		t.Fatalf("production: quoted values must stay distinct, FP=%d", prod.FP)
 	}
-
-	// The path lives only in the stack frame, not the signature — so
-	// disabling "path" changes nothing here. Disable "val" instead on a
-	// pair that differs only in a quoted value:
-	a2 := "Traceback (most recent call last):\n  File \"/x.py\", line 1, in <module>\nKeyError: 'alpha'\n"
-	b2 := "Traceback (most recent call last):\n  File \"/x.py\", line 1, in <module>\nKeyError: 'beta'\n"
-	entries2 := []Entry{{Raw: a2, Group: "g1"}, {Raw: b2, Group: "g1"}}
-
-	full := Evaluate(entries2, nil, 0)[0]
-	if full.TP != 1 {
-		t.Fatalf("full pipeline: TP=%d, want 1 (quoted value normalized)", full.TP)
-	}
-	abl := Evaluate(entries2, map[string]bool{"val": true}, 0)[0]
-	if abl.TP != 0 || abl.FN != 1 {
-		t.Fatalf("ablation val: TP=%d FN=%d, want 0/1 (values differ)", abl.TP, abl.FN)
-	}
-	if abl.Recall >= full.Recall {
-		t.Fatalf("ablation recall %.2f should drop below %.2f", abl.Recall, full.Recall)
+	merged := Evaluate(entries, nil, 0)[0] // everything on: val blanks them
+	if merged.FP != 1 {
+		t.Fatalf("val rule on: quoted values must merge, FP=%d", merged.FP)
 	}
 }
 
@@ -116,16 +105,18 @@ func TestLoadCorpus(t *testing.T) {
 	}
 }
 
-// TestSampleCorpusSanity guards the shipped sample corpus: full pipeline,
-// threshold 0 must be perfectly precise (no cross-group collisions) and
-// must catch every same-group pair (the corpus is curated so that
-// normalization alone aligns each group).
+// TestSampleCorpusSanity guards the shipped sample corpus under
+// PRODUCTION rules (quoted values kept): threshold 0 must be perfectly
+// precise (no cross-group collisions — e.g. numpy vs torch) and must
+// catch every same-group pair. Groups are curated so only path/line/PID/
+// timestamp/thread-name drift within a group; quoted values are error
+// identity and must be identical within a group.
 func TestSampleCorpusSanity(t *testing.T) {
 	entries, err := LoadCorpus(filepath.Join("..", "..", "eval", "corpus.jsonl"))
 	if err != nil {
 		t.Skipf("sample corpus not present: %v", err)
 	}
-	m := Evaluate(entries, nil, 0)[0]
+	m := Evaluate(entries, fingerprint.DefaultDisabledRules, 0)[0]
 	if m.FP != 0 {
 		t.Fatalf("sample corpus: FP=%d at t=0 — different groups collided", m.FP)
 	}

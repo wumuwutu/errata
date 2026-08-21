@@ -24,8 +24,8 @@ func TestNormalize(t *testing.T) {
 		{"pointer 0x7fff5fbff8ac dead", "pointer <ADDR> dead"},
 		{"open /home/alice/proj/train.py failed", "open <PATH> failed"},
 		{`open C:\Users\bob\app.py failed`, "open <PATH> failed"},
-		{"No module named 'requests'", "No module named <VAL>"},
-		{`key "secret-token" missing`, "key <VAL> missing"},
+		{"No module named 'requests'", "No module named 'requests'"}, // quoted values kept (identity)
+		{`key "secret-token" missing`, `key "secret-token" missing`},
 		{"line 42 col 7", "line <N> col <N>"},
 	}
 	for _, c := range cases {
@@ -51,7 +51,7 @@ Traceback (most recent call last):
     main()
   File "/opt/services/api/train.py", line 3, in main
     run(999)
-TypeError: unsupported operand type(s) for +: 'float' and 'list'
+TypeError: unsupported operand type(s) for +: 'int' and 'str'
 `
 
 func TestPythonFingerprintStableAcrossPathLinePid(t *testing.T) {
@@ -66,7 +66,7 @@ func TestPythonFingerprintStableAcrossPathLinePid(t *testing.T) {
 	if fpA != fpB {
 		t.Fatalf("fingerprints differ: %s vs %s (sig %q)", fpA, fpB, sigA)
 	}
-	want := "TypeError: unsupported operand type(s) for +: <VAL> and <VAL>"
+	want := "TypeError: unsupported operand type(s) for +: 'int' and 'str'"
 	if sigA != want {
 		t.Fatalf("signature = %q, want %q", sigA, want)
 	}
@@ -82,7 +82,7 @@ TypeError: Cannot read properties of undefined (reading 'name')
     at node:internal/modules/cjs/loader:1105:14
 `
 
-const nodeErrB = `TypeError: Cannot read properties of undefined (reading 'title')
+const nodeErrB = `TypeError: Cannot read properties of undefined (reading 'name')
     at main (/srv/app/build/index.js:3:5)
     at node:internal/modules/cjs/loader:999:10
 `
@@ -107,7 +107,7 @@ func TestNodeModuleNotFound(t *testing.T) {
 	if lang != LangNode {
 		t.Fatalf("lang = %q", lang)
 	}
-	if sig != "Error: Cannot find module <VAL>" {
+	if sig != "Error: Cannot find module 'express'" {
 		t.Fatalf("sig = %q", sig)
 	}
 	if fp == "" {
@@ -146,11 +146,11 @@ func TestUnknownLanguageSkipped(t *testing.T) {
 }
 
 func TestSimHashDeterministic(t *testing.T) {
-	s := "TypeError: unsupported operand type(s) for +: <VAL> and <VAL>"
+	s := "TypeError: unsupported operand type(s) for +: 'int' and 'str'"
 	if SimHash(s) != SimHash(s) {
 		t.Fatal("SimHash not deterministic")
 	}
-	if SimHash(s) == SimHash("KeyError: <VAL>") {
+	if SimHash(s) == SimHash("KeyError: 'database_url'") {
 		t.Fatal("distinct signatures collided")
 	}
 }
@@ -234,7 +234,7 @@ func TestPythonSyntaxErrorWithoutTraceback(t *testing.T) {
 	if sigA != sigB || fpA != fpB {
 		t.Fatalf("syntax error fingerprint not stable:\nA=%q %s\nB=%q %s", sigA, fpA, sigB, fpB)
 	}
-	if sigA != "SyntaxError: expected <VAL>" {
+	if sigA != "SyntaxError: expected ':'" {
 		t.Fatalf("sig = %q", sigA)
 	}
 }
@@ -261,5 +261,18 @@ func TestPythonTracebackPathUnchanged(t *testing.T) {
 	lang, sig, _ := Fingerprint(raw)
 	if lang != LangPython || sig != "django.core.exceptions.ImproperlyConfigured: settings broken" {
 		t.Fatalf("lang=%q sig=%q", lang, sig)
+	}
+}
+
+func TestQuotedValueIsErrorIdentity(t *testing.T) {
+	// The quoted value carries the error's identity: missing numpy vs
+	// missing torch are DIFFERENT errors with different fixes.
+	mk := func(mod string) string {
+		return "Traceback (most recent call last):\n  File \"/x/a.py\", line 1, in <module>\n    import " + mod + "\nModuleNotFoundError: No module named '" + mod + "'\n"
+	}
+	_, sigA, fpA := Fingerprint(mk("numpy"))
+	_, sigB, fpB := Fingerprint(mk("torch"))
+	if sigA == sigB || fpA == fpB {
+		t.Fatalf("numpy/torch collapsed: %q vs %q", sigA, fpB)
 	}
 }
