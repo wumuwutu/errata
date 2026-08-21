@@ -18,8 +18,8 @@ var runCmd = &cobra.Command{
 		"through untouched; stderr is recorded on the side. If the command fails with\n" +
 		"non-empty stderr, the error is fingerprinted, stored, and matched against\n" +
 		"your history. err run always exits with the wrapped command's exit code.",
-	Example:           "  err run python train.py\n  err run node app.js",
-	Args:              cobra.ArbitraryArgs,
+	Example:            "  err run python train.py\n  err run node app.js",
+	Args:               cobra.ArbitraryArgs,
 	DisableFlagParsing: true, // pass all flags through to the wrapped command
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
