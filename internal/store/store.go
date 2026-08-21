@@ -105,6 +105,7 @@ func (s *Store) FindSimilar(fp string, maxDist int) (*Error, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
+	defer rows.Close()
 	type cand struct {
 		id   int64
 		dist int
@@ -114,7 +115,6 @@ func (s *Store) FindSimilar(fp string, maxDist int) (*Error, int, error) {
 		var id int64
 		var hex string
 		if err := rows.Scan(&id, &hex); err != nil {
-			rows.Close()
 			return nil, 0, err
 		}
 		h, err := strconv.ParseUint(hex, 16, 64)
@@ -126,10 +126,8 @@ func (s *Store) FindSimilar(fp string, maxDist int) (*Error, int, error) {
 		}
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
 		return nil, 0, err
 	}
-	rows.Close()
 	if best.id < 0 || best.dist > maxDist {
 		return nil, 0, nil
 	}

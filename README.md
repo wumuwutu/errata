@@ -121,6 +121,7 @@ internal/cli/         cobra commands (run / fix / show / pending / ignore / init
 internal/capture/     PTY passthrough executor + scene capture
 internal/hooks/       embedded zsh/bash hook scripts + rc writer
 internal/fingerprint/ ANSI strip, normalization, signature extraction, SimHash
+internal/match/       the Matcher interface (SimHash today, embedding later)
 internal/eval/        corpus loading + pairwise precision/recall evaluation
 internal/store/       SQLite (errors / fixes / pending + FTS5)
 internal/hint/        the restrained gray hit hint

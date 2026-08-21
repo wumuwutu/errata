@@ -63,8 +63,7 @@ func (b *lockedBuffer) Bytes() []byte {
 // exactly. A failure to start the child (e.g. command not found) is
 // reported as an error and exit code 127, mirroring shell behavior.
 func Run(args []string) (*Result, error) {
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Env = os.Environ()
+	cmd := exec.Command(args[0], args[1:]...) // nil Env inherits os.Environ()
 
 	stdinIsTTY := term.IsTerminal(int(os.Stdin.Fd()))
 
