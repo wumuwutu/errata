@@ -45,11 +45,6 @@ func Print(w io.Writer, rec *store.Error, similar bool) {
 	fmt.Fprintln(w, b.String())
 }
 
-// PrintToStderr is the convenience wrapper used by err run.
-func PrintToStderr(rec *store.Error, similar bool) {
-	Print(os.Stderr, rec, similar)
-}
-
 func shortenHome(dir string) string {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {

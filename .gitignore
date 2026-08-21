@@ -2,3 +2,4 @@ kimi-export-session_*.md
 /err
 /dist/
 *.test
+tmp/

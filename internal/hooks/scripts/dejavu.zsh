@@ -1,0 +1,57 @@
+# dejavu shell hook for zsh — eval "$(err init zsh)"
+#
+# How it works:
+#   - stderr is diverted through tee: it still reaches your terminal
+#     byte-for-byte (never intercepted, never delayed) AND is appended to a
+#     per-session buffer.
+#   - preexec snapshots the buffer offset and the full command line.
+#   - precmd reads $?: if the command failed and the buffer grew, a single
+#     `err hook-event` call does the fingerprinting/storage/hint in Go.
+# Performance: the success path runs zero subprocesses; the failure path
+# runs at most one `err` invocation.
+# If the err binary is missing, everything below degrades to a no-op.
+
+command -v err >/dev/null 2>&1 || return 0
+
+__dejavu_dir="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/dejavu-$(id -u 2>/dev/null || echo u)"
+mkdir -p "$__dejavu_dir" 2>/dev/null && chmod 700 "$__dejavu_dir" 2>/dev/null
+__dejavu_sess="$__dejavu_dir/sess-$$"
+: >> "$__dejavu_sess.err" 2>/dev/null
+
+__dejavu_preexec() {
+  __dejavu_off=$(wc -c < "$__dejavu_sess.err" 2>/dev/null)
+  __dejavu_off=${__dejavu_off//[[:space:]]/}
+  __dejavu_off=${__dejavu_off:-0}
+  __dejavu_cmd="$1"
+}
+
+__dejavu_precmd() {
+  local ec=$?
+  (( ec == 0 )) && return 0
+  command -v err >/dev/null 2>&1 || return 0
+  [[ -n "$__dejavu_cmd" ]] || return 0
+  local size
+  size=$(wc -c < "$__dejavu_sess.err" 2>/dev/null)
+  size=${size//[[:space:]]/}
+  size=${size:-0}
+  if [[ ! "$size" -gt "${__dejavu_off:-0}" ]] 2>/dev/null; then
+    # The tee subprocess may lag a few ms behind the command; grant one
+    # short grace period on the error path before deciding "no stderr".
+    sleep 0.05
+    size=$(wc -c < "$__dejavu_sess.err" 2>/dev/null)
+    size=${size//[[:space:]]/}
+    size=${size:-0}
+  fi
+  [[ "$size" -gt "${__dejavu_off:-0}" ]] 2>/dev/null || return 0
+  local cmd="$__dejavu_cmd"
+  __dejavu_cmd=""
+  err hook-event --exit-code "$ec" --offset "${__dejavu_off:-0}" \
+    --stderr-file "$__dejavu_sess.err" --cwd "$PWD" --command "$cmd" 2>/dev/null
+}
+
+autoload -Uz add-zsh-hook
+add-zsh-hook preexec __dejavu_preexec
+add-zsh-hook precmd __dejavu_precmd
+
+# stderr diversion last, so hook installation noise is not recorded.
+exec 2> >(tee -a "$__dejavu_sess.err" >&2)
