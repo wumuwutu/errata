@@ -318,6 +318,93 @@ func (s *Store) ListAll() ([]Error, error) {
 	return out, rows.Err()
 }
 
+// KV is a label/count pair for stats tables.
+type KV struct {
+	Label string
+	N     int
+}
+
+// Stats aggregates the error library for err stats (dev-guide §1.3: the
+// "复盘镜子").
+type Stats struct {
+	Total       int
+	Resolved    int
+	ByLanguage  []KV  // distinct errors per language, most first
+	ByProject   []KV  // top projects by total occurrences
+	TopRepeated []KV  // top signatures by occurrence count
+	WeeklyNew   []int // new errors per week, oldest first; len == weeks
+}
+
+// Stats aggregates the library. Weeks bucket created_at into the last
+// `weeks` 7-day windows ending at now.
+func (s *Store) Stats(now time.Time, topN, weeks int) (*Stats, error) {
+	var st Stats
+	var err error
+	if st.Resolved, st.Total, err = s.RecordRate(); err != nil {
+		return nil, err
+	}
+
+	if st.ByLanguage, err = s.kvQuery(
+		`SELECT COALESCE(language, '?'), COUNT(*) FROM errors
+		 GROUP BY language ORDER BY 2 DESC, 1`, -1); err != nil {
+		return nil, err
+	}
+	if st.ByProject, err = s.kvQuery(
+		`SELECT COALESCE(project_dir, '?'), SUM(count) FROM errors
+		 GROUP BY project_dir ORDER BY 2 DESC, 1`, topN); err != nil {
+		return nil, err
+	}
+	if st.TopRepeated, err = s.kvQuery(
+		`SELECT COALESCE(signature, '?'), count FROM errors
+		 ORDER BY 2 DESC, 1`, topN); err != nil {
+		return nil, err
+	}
+
+	st.WeeklyNew = make([]int, weeks)
+	rows, err := s.db.Query(`SELECT created_at FROM errors`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	cutoff := now.Add(-time.Duration(weeks) * 7 * 24 * time.Hour)
+	for rows.Next() {
+		var created string
+		if err := rows.Scan(&created); err != nil {
+			return nil, err
+		}
+		t := parseTime(created)
+		if t.IsZero() || t.Before(cutoff) {
+			continue
+		}
+		age := now.Sub(t)
+		bucket := weeks - 1 - int(age/(7*24*time.Hour))
+		if bucket >= 0 && bucket < weeks {
+			st.WeeklyNew[bucket]++
+		}
+	}
+	return &st, rows.Err()
+}
+
+func (s *Store) kvQuery(query string, limit int) ([]KV, error) {
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []KV
+	for rows.Next() {
+		var kv KV
+		if err := rows.Scan(&kv.Label, &kv.N); err != nil {
+			return nil, err
+		}
+		out = append(out, kv)
+	}
+	return out, rows.Err()
+}
+
 // RecentPendingInDir returns the most recently seen pending error in dir
 // that is still inside the success window and has not had a "did you fix
 // it?" reminder within remindEvery (dev-guide §7.2 DETECTED_SUCCESS,

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wumuwutu/dejavu/internal/config"
 	"github.com/wumuwutu/dejavu/internal/store"
@@ -58,5 +59,29 @@ func TestListNonTTYFallback(t *testing.T) {
 	}
 	if strings.Contains(out, "\x1b[") {
 		t.Fatal("non-TTY output must not contain ANSI escapes")
+	}
+}
+
+func TestFilterByProject(t *testing.T) {
+	mk := func(id int64, dir string, day time.Time) store.Error {
+		return store.Error{ID: id, ProjectDir: dir, FirstSeen: day}
+	}
+	now := time.Now()
+	// ListAll order is newest-first; filterByProject must return
+	// oldest-first and include subdirectories only.
+	items := []store.Error{
+		mk(3, "/proj/sub", now),
+		mk(2, "/proj", now.Add(-time.Hour)),
+		mk(9, "/projectx", now.Add(-2*time.Hour)), // prefix-but-not-subdir
+		mk(1, "/proj", now.Add(-3*time.Hour)),
+	}
+	got := filterByProject(items, "/proj")
+	if len(got) != 3 {
+		t.Fatalf("got %d items, want 3", len(got))
+	}
+	for i, wantID := range []int64{1, 2, 3} {
+		if got[i].ID != wantID {
+			t.Fatalf("order[%d] = %d, want %d", i, got[i].ID, wantID)
+		}
 	}
 }

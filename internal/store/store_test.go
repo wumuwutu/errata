@@ -272,3 +272,58 @@ func TestRecentPendingInDir(t *testing.T) {
 		t.Fatal("resolved error must not match")
 	}
 }
+
+func TestStats(t *testing.T) {
+	s := openTemp(t)
+	now := time.Now()
+
+	e1 := sample("0000000000000011")
+	e1.ProjectDir = "/proj-a"
+	if _, _, err := s.UpsertError(e1); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.UpsertError(e1); err != nil { // count=2
+		t.Fatal(err)
+	}
+	e2 := sample("0000000000000012")
+	e2.Language = "node"
+	e2.ProjectDir = "/proj-b"
+	if _, _, err := s.UpsertError(e2); err != nil {
+		t.Fatal(err)
+	}
+	// An old error outside the weekly window.
+	e3 := sample("0000000000000013")
+	id3, _, _ := s.UpsertError(e3)
+	old := now.Add(-60 * 24 * time.Hour).Format(timeLayout)
+	if _, err := s.db.Exec(`UPDATE errors SET created_at = ? WHERE id = ?`, old, id3); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddFix(1, "fix"); err != nil {
+		t.Fatal(err)
+	}
+
+	st, err := s.Stats(now, 5, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Total != 3 || st.Resolved != 1 {
+		t.Fatalf("total/resolved = %d/%d, want 3/1", st.Total, st.Resolved)
+	}
+	if len(st.ByLanguage) != 2 {
+		t.Fatalf("ByLanguage = %v", st.ByLanguage)
+	}
+	// proj-a has 2 occurrences, the others 1 each -> proj-a first.
+	if st.ByProject[0].Label != "/proj-a" || st.ByProject[0].N != 2 {
+		t.Fatalf("ByProject[0] = %+v", st.ByProject[0])
+	}
+	if st.TopRepeated[0].N != 2 {
+		t.Fatalf("TopRepeated[0] = %+v", st.TopRepeated[0])
+	}
+	total := 0
+	for _, n := range st.WeeklyNew {
+		total += n
+	}
+	if total != 2 {
+		t.Fatalf("weekly new total = %d, want 2 (old error excluded)", total)
+	}
+}
