@@ -1,5 +1,5 @@
-// Package cmd wires the cobra command tree for err.
-package cmd
+// Package cli wires the cobra command tree for err.
+package cli
 
 import (
 	"fmt"
