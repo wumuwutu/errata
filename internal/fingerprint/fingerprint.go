@@ -7,7 +7,13 @@ import "fmt"
 // hex) means the output is not a recognizable Python/Node error and must
 // be skipped (precision-first: never guess).
 func Fingerprint(stderr string) (lang, signature, hex string) {
-	lang, signature = ExtractSignature(stderr)
+	return FingerprintWith(stderr, nil)
+}
+
+// FingerprintWith is Fingerprint with selected normalization rules
+// disabled (ablation runs in the eval toolchain).
+func FingerprintWith(stderr string, disabled map[string]bool) (lang, signature, hex string) {
+	lang, signature = ExtractSignatureWith(stderr, disabled)
 	if signature == "" {
 		return lang, "", ""
 	}

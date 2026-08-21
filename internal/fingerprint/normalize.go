@@ -38,21 +38,46 @@ func StripANSI(s string) string {
 	return strings.ReplaceAll(s, "\r", "")
 }
 
+// RuleNames lists the normalization rules, in pipeline order. Used by the
+// eval toolchain for ablation runs (dev-guide §6.4).
+var RuleNames = []string{"uuid", "ts", "ip", "addr", "path", "val", "num"}
+
 // Normalize rewrites volatile fragments of s into stable placeholders:
 //
 //	UUID → <UUID>, timestamps → <TS>, IP addresses → <IP>,
 //	hex addresses → <ADDR>, absolute paths → <PATH>,
 //	quoted values → <VAL>, remaining numbers → <N>
 func Normalize(s string) string {
-	s = uuidRe.ReplaceAllString(s, "<UUID>")
-	s = tsRe.ReplaceAllString(s, "<TS>")
-	s = ipRe.ReplaceAllString(s, "<IP>")
-	s = addrRe.ReplaceAllString(s, "<ADDR>")
-	s = winPath.ReplaceAllString(s, "<PATH>")
-	s = unixPathRe.ReplaceAllString(s, "${1}<PATH>")
-	s = squoteRe.ReplaceAllString(s, "<VAL>")
-	s = dquoteRe.ReplaceAllString(s, "<VAL>")
-	s = bquoteRe.ReplaceAllString(s, "<VAL>")
-	s = numberRe.ReplaceAllString(s, "<N>")
+	return NormalizeWith(s, nil)
+}
+
+// NormalizeWith is Normalize with selected rules disabled (ablation).
+// disabled maps rule names (see RuleNames) to true.
+func NormalizeWith(s string, disabled map[string]bool) string {
+	off := func(rule string) bool { return disabled[rule] }
+	if !off("uuid") {
+		s = uuidRe.ReplaceAllString(s, "<UUID>")
+	}
+	if !off("ts") {
+		s = tsRe.ReplaceAllString(s, "<TS>")
+	}
+	if !off("ip") {
+		s = ipRe.ReplaceAllString(s, "<IP>")
+	}
+	if !off("addr") {
+		s = addrRe.ReplaceAllString(s, "<ADDR>")
+	}
+	if !off("path") {
+		s = winPath.ReplaceAllString(s, "<PATH>")
+		s = unixPathRe.ReplaceAllString(s, "${1}<PATH>")
+	}
+	if !off("val") {
+		s = squoteRe.ReplaceAllString(s, "<VAL>")
+		s = dquoteRe.ReplaceAllString(s, "<VAL>")
+		s = bquoteRe.ReplaceAllString(s, "<VAL>")
+	}
+	if !off("num") {
+		s = numberRe.ReplaceAllString(s, "<N>")
+	}
 	return s
 }
