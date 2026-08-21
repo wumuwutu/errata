@@ -37,6 +37,9 @@ internal/hooks/
 internal/fingerprint/
   normalize.go               ANSI 剥离 + 归一化规则（uuid/ts/ip/addr/path/val/num）
   signature.go               语言注册表（Extractor/Register）+ python/node 提取器
+  generic.go                 保底提取器（unknown）：只信明确错误标记
+                             （Exception in thread/panic:/fatal:/error:/shell 经典），
+                             注册在注册表最后，永不抢 python/node 的识别
   simhash.go                 自实现 64 位 SimHash + 海明距离 + 相似阈值 6
   fingerprint.go             Fingerprint()：管线入口（签名→hex 指纹）
 
@@ -74,7 +77,8 @@ B. shell hook（用户在 hooked shell 里跑任意命令）
 recordFailure(commandLine, dir, stderr, cfg, hintOut):
   1. ignore 黑名单 / err 自身命令 → 跳过
   2. fingerprint/fingerprint.go:9 Fingerprint()  → (lang, signature, hex)
-     签名空（非 Python/Node）→ 跳过（宁可漏报）
+     提取顺序：python（精确）→ node（精确）→ unknown（保底，generic.go）。
+     签名空（无任何明确错误标记）→ 跳过（宁可漏报）
   3. store.Open()（migrate 自动升级 schema）
   4. cli/record.go:71 findHit(match.SimHash, fp) → 精确命中 or 相似降级
   5. store/store.go:147 UpsertError() → 新错误建记录+pending；旧错误 count++
@@ -91,7 +95,7 @@ recordFailure(commandLine, dir, stderr, cfg, hintOut):
 | fingerprint | 推导 | SimHash hex，UNIQUE；同错去重的键 |
 | signature | 推导 | 归一化后的错误签名（如 `TypeError: ... <VAL>`） |
 | raw_sample | 原始事实 | 最近一次出现的 stderr 原文（去 ANSI） |
-| language | 推导 | python / node（提取器判定） |
+| language | 推导 | python / node / unknown（提取器判定） |
 | command / project_dir / git_commit / runtime / os | 原始事实 | 现场五要素（git/runtime 尽力而为，可空） |
 | created_at / first_seen / last_seen | 原始事实 | 建条时间 / 首见 / 末见 |
 | count | 推导 | 出现次数（upsert 时 +1） |
@@ -118,6 +122,10 @@ recordFailure(commandLine, dir, stderr, cfg, hintOut):
 **schema_version**：单行版本表；`Open()` 时按序补齐迁移。
 
 ## 怎么加一门新语言（如 Java）
+
+注意分工：**不加任何文件，未知语言的错误也会被 generic.go 的保底提取器以
+`unknown` 记录**（前提：输出里有明确错误标记）。只有当你想要更精确的签名
+（提取异常类型+消息模板，而不是整行）时才需要：
 
 1. 新建 `internal/fingerprint/java.go`：实现
    `func javaSignature(text string, disabled map[string]bool) (string, bool)`

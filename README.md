@@ -98,11 +98,15 @@ in the same directory, err prints a single gray line — "looks like you just fi
   directory, git commit, runtime version, OS.
 - **Fingerprint** — ANSI codes are stripped, then volatile parts are normalized to
   placeholders (`/abs/path` → `<PATH>`, `0x…` → `<ADDR>`, numbers → `<N>`, UUIDs /
-  timestamps / IPs / quoted values likewise). The error signature (Python: the last
-  exception line of the traceback; Node: the first error line of the stack) is hashed
-  with a self-contained 64-bit SimHash. Identical fingerprints hit directly; a Hamming
-  distance ≤ 6 is shown as a degraded "similar error". Precision over recall:
-  unrecognized output is skipped, never guessed.
+  timestamps / IPs / quoted values likewise). Python and Node get precise signature
+  extraction (Python: last exception line of the traceback, plus the SyntaxError
+  family which prints none; Node: the first error line of the stack). Everything else
+  falls back to a conservative generic extractor that only trusts unambiguous markers
+  (`Exception in thread …`, `panic:`, `fatal:`, `file.c:12: error: …`,
+  `command not found`, …) and records the error as language `unknown`. The signature
+  is hashed with a self-contained 64-bit SimHash. Identical fingerprints hit directly;
+  a Hamming distance ≤ 6 is shown as a degraded "similar error". Precision over recall:
+  output with no clear error marker is skipped, never guessed.
 - **Storage** — local SQLite ([modernc.org/sqlite](https://gitlab.com/cznic/sqlite),
   pure Go, no CGO) at `~/.local/share/dejavu/dejavu.db` (XDG-aware), with an FTS5
   full-text index over signatures and solutions. Config lives at
@@ -114,7 +118,9 @@ in the same directory, err prints a single gray line — "looks like you just fi
 
 Deliberately small:
 
-- Python and Node errors only (other languages are skipped silently).
+- Precise signatures for Python and Node; a conservative generic fallback records
+  other errors as `unknown` (Java/gcc/Go/shell markers). Output with no clear error
+  marker is skipped — precision over recall.
 - Capture via the shell hook (zsh/bash) and `err run`.
 - No LLM features, reports, watch or MCP yet.
 
