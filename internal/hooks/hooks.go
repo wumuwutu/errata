@@ -54,6 +54,12 @@ func RCFile(shell string) (string, error) {
 	}
 }
 
+// rcBlock is the exact block WriteRC appends, so uninstall can remove it
+// precisely (uninstall red line, dev-guide §9).
+func rcBlock(shell string) string {
+	return fmt.Sprintf("\n# dejavu shell hook — https://github.com/wumuwutu/dejavu\n%s\n", EvalLine(shell))
+}
+
 // WriteRC appends the eval line to the shell's rc file. It reports the
 // file touched and whether the line was already present (then nothing is
 // written). The rc file is created if missing.
@@ -77,9 +83,41 @@ func WriteRC(shell string) (rcPath string, already bool, err error) {
 		return "", false, err
 	}
 	defer f.Close()
-	block := fmt.Sprintf("\n# dejavu shell hook — https://github.com/wumuwutu/dejavu\n%s\n", line)
-	if _, err := f.WriteString(block); err != nil {
+	if _, err := f.WriteString(rcBlock(shell)); err != nil {
 		return "", false, err
 	}
 	return rcPath, false, nil
+}
+
+// RemoveRC removes the hook block from the shell's rc file — the exact
+// block WriteRC appended, or a bare eval line the user added by hand.
+// removed reports whether anything changed.
+func RemoveRC(shell string) (rcPath string, removed bool, err error) {
+	rcPath, err = RCFile(shell)
+	if err != nil {
+		return "", false, err
+	}
+	data, err := os.ReadFile(rcPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return rcPath, false, nil
+		}
+		return "", false, err
+	}
+	content := string(data)
+	var out string
+	switch {
+	case strings.Contains(content, rcBlock(shell)):
+		out = strings.Replace(content, rcBlock(shell), "", 1)
+	case strings.Contains(content, EvalLine(shell)+"\n"):
+		out = strings.Replace(content, EvalLine(shell)+"\n", "", 1)
+	case strings.Contains(content, EvalLine(shell)):
+		out = strings.Replace(content, EvalLine(shell), "", 1)
+	default:
+		return rcPath, false, nil
+	}
+	if err := os.WriteFile(rcPath, []byte(out), 0o644); err != nil {
+		return "", false, err
+	}
+	return rcPath, true, nil
 }

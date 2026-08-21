@@ -49,6 +49,41 @@ func TestWriteRCIdempotent(t *testing.T) {
 	}
 }
 
+func TestRemoveRC(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	// Write then remove: the file must return to its prior content.
+	if _, _, err := WriteRC("zsh"); err != nil {
+		t.Fatal(err)
+	}
+	path, removed, err := RemoveRC("zsh")
+	if err != nil || !removed {
+		t.Fatalf("RemoveRC: removed=%v err=%v", removed, err)
+	}
+	data, _ := os.ReadFile(path)
+	if strings.Contains(string(data), "err init") {
+		t.Fatalf("hook line still present:\n%s", data)
+	}
+
+	// Removing again is a no-op.
+	if _, removed, err := RemoveRC("zsh"); err != nil || removed {
+		t.Fatalf("second RemoveRC: removed=%v err=%v", removed, err)
+	}
+
+	// A hand-added bare eval line (no comment block) is removed too.
+	bashRC := filepath.Join(os.Getenv("HOME"), ".bashrc")
+	if err := os.WriteFile(bashRC, []byte("export FOO=1\n"+EvalLine("bash")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, removed, err := RemoveRC("bash"); err != nil || !removed {
+		t.Fatalf("RemoveRC bash: removed=%v err=%v", removed, err)
+	}
+	data, _ = os.ReadFile(bashRC)
+	if string(data) != "export FOO=1\n" {
+		t.Fatalf("bare-line removal damaged the file:\n%q", data)
+	}
+}
+
 // TestHookIntegration runs the shell integration scripts against a freshly
 // built err binary. Skipped with -short or when the shell is missing.
 func TestHookIntegration(t *testing.T) {

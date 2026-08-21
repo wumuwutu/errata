@@ -81,6 +81,12 @@ func Open(path string) (*Store, error) {
 // Close closes the database.
 func (s *Store) Close() error { return s.db.Close() }
 
+// SchemaVersion reports the database's current schema version.
+func (s *Store) SchemaVersion() (int, error) { return schemaVersion(s.db) }
+
+// LatestSchemaVersion is the schema version this binary migrates to.
+func LatestSchemaVersion() int { return len(migrations) }
+
 // FindByFingerprint returns the record with this exact fingerprint, or
 // (nil, nil) if unknown.
 func (s *Store) FindByFingerprint(fp string) (*Error, error) {
