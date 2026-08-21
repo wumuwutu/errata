@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -70,5 +72,31 @@ func TestLoadMissingConfig(t *testing.T) {
 	}
 	if cfg == nil || !cfg.HintEnabled {
 		t.Fatalf("cfg = %+v", cfg)
+	}
+	if cfg.ArchiveAfterDays != DefaultArchiveAfterDays {
+		t.Fatalf("ArchiveAfterDays = %d, want %d", cfg.ArchiveAfterDays, DefaultArchiveAfterDays)
+	}
+}
+
+func TestArchiveAfterDaysConfigurable(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	cfgDir := filepath.Join(dir, appName)
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.yaml"),
+		[]byte("archive_after_days: 7\nhint:\n  enabled: false\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ArchiveAfterDays != 7 {
+		t.Fatalf("ArchiveAfterDays = %d, want 7", cfg.ArchiveAfterDays)
+	}
+	if cfg.HintEnabled {
+		t.Fatal("hint.enabled: false not honored")
 	}
 }

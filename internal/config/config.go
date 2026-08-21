@@ -23,7 +23,14 @@ type Config struct {
 	IgnoreDirs []string
 	// HintEnabled controls the gray hit hint after a captured error.
 	HintEnabled bool
+	// ArchiveAfterDays is the number of days after which a pending
+	// (unresolved) error is archived. 0 or negative disables archiving.
+	ArchiveAfterDays int
 }
+
+// DefaultArchiveAfterDays is the pending-error archival horizon (dev-guide
+// §7.5: archive after N days, never delete).
+const DefaultArchiveAfterDays = 30
 
 // ConfigDir returns the config directory, honoring XDG_CONFIG_HOME.
 func ConfigDir() (string, error) {
@@ -88,12 +95,16 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	cfg := &Config{
-		IgnoreCommands: v.GetStringSlice("ignore.commands"),
-		IgnoreDirs:     v.GetStringSlice("ignore.dirs"),
-		HintEnabled:    true,
+		IgnoreCommands:   v.GetStringSlice("ignore.commands"),
+		IgnoreDirs:       v.GetStringSlice("ignore.dirs"),
+		HintEnabled:      true,
+		ArchiveAfterDays: DefaultArchiveAfterDays,
 	}
 	if v.IsSet("hint.enabled") {
 		cfg.HintEnabled = v.GetBool("hint.enabled")
+	}
+	if v.IsSet("archive_after_days") {
+		cfg.ArchiveAfterDays = v.GetInt("archive_after_days")
 	}
 	return cfg, nil
 }

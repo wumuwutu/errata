@@ -3,6 +3,7 @@ package store
 import (
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func openTemp(t *testing.T) *Store {
@@ -154,5 +155,72 @@ func TestUnknownID(t *testing.T) {
 	e, err := s.Get(999)
 	if err != nil || e != nil {
 		t.Fatalf("want (nil,nil), got (%v,%v)", e, err)
+	}
+}
+
+func TestListPendingAndRecordRate(t *testing.T) {
+	s := openTemp(t)
+	id1, _, _ := s.UpsertError(sample("00000000000000a1"))
+	id2, _, _ := s.UpsertError(sample("00000000000000a2"))
+
+	items, err := s.ListPending()
+	if err != nil || len(items) != 2 {
+		t.Fatalf("ListPending: %v, %d items", err, len(items))
+	}
+	if items[0].ErrorID != id2 {
+		t.Fatalf("most recent first: got %d, want %d", items[0].ErrorID, id2)
+	}
+	if items[0].Language != "python" || items[0].Signature == "" {
+		t.Fatalf("item incomplete: %+v", items[0])
+	}
+
+	resolved, total, err := s.RecordRate()
+	if err != nil || resolved != 0 || total != 2 {
+		t.Fatalf("RecordRate: %d/%d err=%v", resolved, total, err)
+	}
+
+	if err := s.AddFix(id1, "fixed it"); err != nil {
+		t.Fatal(err)
+	}
+	resolved, total, _ = s.RecordRate()
+	if resolved != 1 || total != 2 {
+		t.Fatalf("RecordRate after fix: %d/%d", resolved, total)
+	}
+	items, _ = s.ListPending()
+	if len(items) != 1 || items[0].ErrorID != id2 {
+		t.Fatalf("ListPending after fix: %+v", items)
+	}
+}
+
+func TestArchiveStalePending(t *testing.T) {
+	s := openTemp(t)
+	idNew, _, _ := s.UpsertError(sample("00000000000000b1"))
+	idOld, _, _ := s.UpsertError(sample("00000000000000b2"))
+
+	// Age the second error's pending entry by 60 days.
+	old := time.Now().AddDate(0, 0, -60).Format(timeLayout)
+	if _, err := s.db.Exec(
+		`UPDATE pending SET detected_at = ? WHERE error_id = ?`, old, idOld); err != nil {
+		t.Fatal(err)
+	}
+
+	archived, err := s.ArchiveStalePending(time.Now().AddDate(0, 0, -30))
+	if err != nil || archived != 1 {
+		t.Fatalf("ArchiveStalePending: archived=%d err=%v", archived, err)
+	}
+
+	items, _ := s.ListPending()
+	if len(items) != 1 || items[0].ErrorID != idNew {
+		t.Fatalf("after archive: %+v", items)
+	}
+	// Archived, not deleted: the error record itself survives.
+	e, _ := s.Get(idOld)
+	if e == nil || e.Pending != "archived" {
+		t.Fatalf("archived record: %+v", e)
+	}
+	// Re-running archives nothing.
+	archived, _ = s.ArchiveStalePending(time.Now().AddDate(0, 0, -30))
+	if archived != 0 {
+		t.Fatalf("re-archive: %d", archived)
 	}
 }

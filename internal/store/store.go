@@ -249,6 +249,91 @@ func (s *Store) AddFix(errorID int64, solution string) error {
 	return err
 }
 
+// PendingItem is a pending (unresolved) error with its record details.
+type PendingItem struct {
+	ErrorID    int64
+	Signature  string
+	Language   string
+	Count      int
+	FirstSeen  time.Time
+	LastSeen   time.Time
+	DetectedAt time.Time
+}
+
+// ListPending returns all unresolved errors, most recently detected first.
+// Archived entries are excluded (not deleted, just out of view).
+func (s *Store) ListPending() ([]PendingItem, error) {
+	rows, err := s.db.Query(
+		`SELECT p.error_id, e.signature, e.language, e.count,
+		        e.first_seen, e.last_seen, p.detected_at
+		 FROM pending p JOIN errors e ON e.id = p.error_id
+		 WHERE p.status = 'pending'
+		 ORDER BY p.detected_at DESC, p.id DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PendingItem
+	for rows.Next() {
+		var it PendingItem
+		var first, last, detected string
+		if err := rows.Scan(&it.ErrorID, &it.Signature, &it.Language, &it.Count,
+			&first, &last, &detected); err != nil {
+			return nil, err
+		}
+		it.FirstSeen = parseTime(first)
+		it.LastSeen = parseTime(last)
+		it.DetectedAt = parseTime(detected)
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+// RecordRate returns how many errors have at least one fix out of the
+// total — the product health metric from dev-guide §7.5.
+func (s *Store) RecordRate() (resolved, total int, err error) {
+	if err = s.db.QueryRow(`SELECT COUNT(*) FROM errors`).Scan(&total); err != nil {
+		return 0, 0, err
+	}
+	err = s.db.QueryRow(
+		`SELECT COUNT(DISTINCT error_id) FROM fixes`).Scan(&resolved)
+	return resolved, total, err
+}
+
+// ArchiveStalePending marks pending entries detected before cutoff as
+// archived. Nothing is deleted; archived errors simply leave the pending
+// queue (dev-guide §7.5). Returns the number archived.
+func (s *Store) ArchiveStalePending(cutoff time.Time) (int64, error) {
+	rows, err := s.db.Query(
+		`SELECT id, detected_at FROM pending WHERE status = 'pending'`)
+	if err != nil {
+		return 0, err
+	}
+	var stale []int64
+	for rows.Next() {
+		var id int64
+		var detected string
+		if err := rows.Scan(&id, &detected); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		if t := parseTime(detected); !t.IsZero() && t.Before(cutoff) {
+			stale = append(stale, id)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	for _, id := range stale {
+		if _, err := s.db.Exec(
+			`UPDATE pending SET status = 'archived' WHERE id = ?`, id); err != nil {
+			return int64(len(stale)), err
+		}
+	}
+	return int64(len(stale)), nil
+}
+
 const selectError = `
 SELECT e.id, e.fingerprint, e.signature, e.raw_sample, e.language, e.command,
        e.project_dir, e.git_commit, e.runtime, e.os,
