@@ -20,7 +20,7 @@ func rec() *store.Error {
 
 func TestPrintExactHitWithSolution(t *testing.T) {
 	r := rec()
-	r.Solution = "conda deactivate 后重装"
+	r.Solution = "reinstall with conda deactivated"
 	var b bytes.Buffer
 	Print(&b, r, false)
 	out := b.String()
@@ -28,11 +28,19 @@ func TestPrintExactHitWithSolution(t *testing.T) {
 	if !strings.HasPrefix(out, gray) || !strings.Contains(out, reset) {
 		t.Fatalf("missing gray ANSI: %q", out)
 	}
-	lines := strings.Count(strings.TrimRight(out, "\n"), "\n") + 1
-	if lines > 2 {
-		t.Fatalf("hint has %d lines, max 2: %q", lines, out)
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(lines) > 2 {
+		t.Fatalf("hint has %d lines, max 2: %q", len(lines), out)
 	}
-	for _, want := range []string{"2025-11-03", "projects/api", "第3次", "解法：conda", "err show 3"} {
+	// Every line starts at column 0 (modulo the gray escape).
+	for _, ln := range lines {
+		ln = strings.TrimPrefix(ln, gray)
+		ln = strings.TrimSuffix(ln, reset)
+		if ln != strings.TrimLeft(ln, " \t") {
+			t.Errorf("hint line not left-aligned: %q", ln)
+		}
+	}
+	for _, want := range []string{"2025-11-03", "projects/api", "occurrence #3", "fix: reinstall", "err show 3"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("hint missing %q: %q", want, out)
 		}
@@ -43,7 +51,7 @@ func TestPrintExactHitNoSolution(t *testing.T) {
 	var b bytes.Buffer
 	Print(&b, rec(), false)
 	out := b.String()
-	if !strings.Contains(out, "还没记录解法") || !strings.Contains(out, "err fix") {
+	if !strings.Contains(out, "no solution recorded") || !strings.Contains(out, "err fix") {
 		t.Fatalf("unresolved hint wrong: %q", out)
 	}
 }
@@ -56,13 +64,28 @@ func TestPrintSimilarIsOneLine(t *testing.T) {
 	if lines != 1 {
 		t.Fatalf("similar hint should be 1 line, got %d: %q", lines, out)
 	}
-	if !strings.Contains(out, "相似错误") {
+	if !strings.Contains(out, "similar error") {
 		t.Fatalf("missing similar marker: %q", out)
 	}
 }
 
+func TestPrintSolvedLeftAligned(t *testing.T) {
+	r := rec()
+	r.Signature = "TypeError: boom"
+	var b bytes.Buffer
+	PrintSolved(&b, r)
+	out := b.String()
+	ln := strings.TrimPrefix(strings.TrimRight(out, "\n"), gray)
+	if ln != strings.TrimLeft(ln, " \t") {
+		t.Fatalf("solved hint not left-aligned: %q", out)
+	}
+	if !strings.Contains(out, "looks fixed") || !strings.Contains(out, "err fix") {
+		t.Fatalf("solved hint wrong: %q", out)
+	}
+}
+
 func TestTruncateLongSolution(t *testing.T) {
-	long := strings.Repeat("解", 200)
+	long := strings.Repeat("x", 200)
 	if got := truncate(long); len([]rune(got)) > maxSolutionRunes {
 		t.Fatalf("truncate gave %d runes", len([]rune(got)))
 	}

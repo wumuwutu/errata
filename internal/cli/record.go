@@ -67,7 +67,7 @@ func recordFailure(commandLine, dir string, stderr []byte, cfg *config.Config, h
 
 // findHit consults the matcher: an exact hit wins; otherwise a similar
 // record is reported as a degraded match. The exact hit's count includes
-// this occurrence ("第N次") because the caller upserts right after.
+// this occurrence ("occurrence #N") because the caller upserts right after.
 func findHit(m match.Matcher, fp string) (hit *store.Error, similar bool) {
 	exact, err := m.Exact(fp)
 	if err != nil {

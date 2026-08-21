@@ -22,6 +22,8 @@ const (
 // Print writes the hit hint for rec to w (typically os.Stderr).
 // rec is the matching record; similar marks a degraded "similar error"
 // match (Hamming distance within threshold) rather than an exact hit.
+// Every line starts at column 0 — the hint must never look like part of
+// the command's own (possibly indented) output.
 func Print(w io.Writer, rec *store.Error, similar bool) {
 	if rec == nil {
 		return
@@ -32,13 +34,13 @@ func Print(w io.Writer, rec *store.Error, similar bool) {
 	var b strings.Builder
 	b.WriteString(gray)
 	if similar {
-		fmt.Fprintf(&b, "── err ── 相似错误：你于 %s 在 %s 见过类似的（err show %d 查看）", when, where, rec.ID)
+		fmt.Fprintf(&b, "── err ── similar error seen %s in %s (err show %d)", when, where, rec.ID)
 	} else {
-		fmt.Fprintf(&b, "── err ── 你于 %s 在 %s 遇到过此错误（第%d次）", when, where, rec.Count)
+		fmt.Fprintf(&b, "── err ── seen %s in %s (occurrence #%d)", when, where, rec.Count)
 		if rec.Solution != "" {
-			fmt.Fprintf(&b, "\n   解法：%s（err show %d 查看详情）", truncate(rec.Solution), rec.ID)
+			fmt.Fprintf(&b, "\nfix: %s (err show %d for details)", truncate(rec.Solution), rec.ID)
 		} else {
-			fmt.Fprintf(&b, "\n   见过但还没记录解法（err fix 记录 | err show %d 查看）", rec.ID)
+			fmt.Fprintf(&b, "\nseen but no solution recorded (err fix to add, err show %d)", rec.ID)
 		}
 	}
 	b.WriteString(reset)
@@ -52,7 +54,7 @@ func PrintSolved(w io.Writer, e *store.Error) {
 	if e == nil {
 		return
 	}
-	fmt.Fprintf(w, "%s── err ── 刚才的 %s 好像解决了？err fix 记录解法%s\n",
+	fmt.Fprintf(w, "%s── err ── looks fixed: %s — err fix to record the solution%s\n",
 		gray, truncate(e.Signature), reset)
 }
 
