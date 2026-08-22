@@ -16,6 +16,15 @@ import (
 // distinct from the user's own terminal text); cyan marks command names;
 // green marks the "looks fixed" keyword; bright marks key payloads like
 // the error signature or the recorded solution.
+//
+// 想自己改颜色？只改下面这四个值即可，所有提示颜色都从这里取。
+// 常用 ANSI 色码速查（\x1b[<code>m）：
+//
+//	30 黑   31 红   32 绿   33 黄   34 蓝   35 品红  36 青   37 白
+//	90 亮黑(灰)  91 亮红  92 亮绿  93 亮黄  94 亮蓝  95 亮品红  96 亮青  97 亮白
+//	0 重置（reset，勿动）
+//
+// 改完跑 go test ./internal/termx/ 确认没破坏 NO_COLOR 不变量。
 const (
 	faint  = "\x1b[90m"
 	cyan   = "\x1b[36m"

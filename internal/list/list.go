@@ -167,22 +167,22 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, tea.Quit
-	case "up", "k":
+	case "up", "k", "w":
 		if m.Cursor > 0 {
 			m.Cursor--
 		}
 		m = m.keepVisible()
-	case "down", "j":
+	case "down", "j", "s":
 		if m.Cursor < len(vis)-1 {
 			m.Cursor++
 		}
 		m = m.keepVisible()
-	case "l":
+	case "a":
 		m.Lang = cycle(langCycle, m.Lang)
 		m.Cursor = 0
 		m.Offset = 0
 		m.Detail = false
-	case "s":
+	case "d":
 		m.Status = cycle(statusCycle, m.Status)
 		m.Cursor = 0
 		m.Offset = 0
@@ -232,7 +232,7 @@ func (m Model) listView() string {
 	var b strings.Builder
 	vis := m.Visible()
 	fmt.Fprintf(&b, "%s\n", headerStyle.Render(fmt.Sprintf(
-		"err list — %d/%d errors   lang: %s   status: %s   (↑↓ navigate, enter detail, e edit, l/s filter, q quit)",
+		"err list — %d/%d errors   lang: %s   status: %s   (w/s navigate, enter detail, e edit, a/d filter, q quit)",
 		len(vis), len(m.Items), orAll(m.Lang), orAll(m.Status))))
 
 	// Scroll window: only the rows around the cursor are rendered, so

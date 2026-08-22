@@ -3,71 +3,62 @@
 > 面向想自己改代码的项目作者。行号以 v0.1.2 为准，函数名比行号更可靠——漂移时以函数名为准。
 > 设计意图与红线在 `docs/dev-guide.md`；本文只描述"代码现在长什么样"。
 
-## 目录树与每个文件的职责
+## 目录树（按架构分层）
 
 ```
-cmd/err/main.go              二进制入口：只调 cli.Execute()（放 cmd/err 下，
-                             go install 产出的二进制才叫 err）
-cmd/err-eval/main.go         指纹评测独立入口（不污染主 CLI）
+入口
+├── cmd/err/main.go            主二进制入口（只调 cli.Execute()）
+└── cmd/err-eval/main.go       指纹评测独立工具（不污染主 CLI）
 
-internal/cli/                cobra 命令层（每个文件一个命令）
-  root.go                    根命令、版本号、启动时懒归档过期 pending
-  run.go                     err run：PTY 包装执行（runWrapped）
-  hook_event.go              err hook-event（隐藏）：shell hook 的回调入口；
-                             --seq 对应 hook 写入缓冲的 OSC 哨兵
-  record.go                  recordFailure：失败命令的"指纹→匹配→存储→提示"
-                             主流程（run 和 hook 两条捕获路径共用）
-  solved.go                  solvedHint：成功命令的"好像解决了？"提示
-  fix.go                     err fix：无参时直接取最近一条 pending（两行摘要
-                             含触发命令 + 立即输入 solution）
-  delete.go / clear.go       err delete（y/yes 确认）/ err clear（必须输入
-                             完整 yes）；--yes 跳过确认，非 TTY 无 --yes 拒绝
-  confirm.go                 破坏性命令的确认输入语义
-  show.go / pending.go / list.go / stats.go / history.go /
-  ignore.go / init.go / doctor.go / uninstall.go
-                             同名用户命令；*_test.go 为对应测试；
-                             pending/list/history 默认只显示最近 20 条（--all 全量）
+internal/
+├── capture/                   捕获层 A：err run 的 PTY 执行与现场记录
+│   ├── run.go                 PTY 执行器：stdout 走 PTY、stderr tee 旁路录制、退出码透传
+│   └── context.go             现场捕获 SceneFor()：命令行、cwd、git HEAD、运行时版本、OS
+│
+├── hooks/                     捕获层 B：shell hook（无感捕获）
+│   ├── scripts/dejavu.zsh     preexec/precmd + stderr tee 分流 + 命令边界哨兵
+│   ├── scripts/dejavu.bash    DEBUG trap + PROMPT_COMMAND（兼容 bash 3.2）
+│   ├── hooks.go               脚本嵌入（go:embed）、rc 写入/精准移除
+│   ├── sessions.go            CleanStaleSessions：清理 7 天前的 session 缓冲
+│   └── *_test.go              真实 shell 集成测试 + PTY 端到端测试
+│
+├── fingerprint/               指纹层：同一错误 → 同一指纹
+│   ├── fingerprint.go         管线入口 Fingerprint()：签名 → hex 指纹
+│   ├── normalize.go           ANSI 剥离 + 归一化规则（uuid/ts/ip/addr/path/val/num）
+│   ├── signature.go           语言注册表（Extractor/Register）+ python/node 精确提取器
+│   ├── generic.go             unknown 保底提取器：只信明确错误标记，注册在最后，
+│   │                          永不抢 python/node 的识别
+│   └── simhash.go             自实现 64 位 SimHash + 海明距离（相似阈值 6）
+│
+├── match/match.go             匹配层：Matcher 接口（Exact/Similar）+ SimHash 实现
+│
+├── store/                     存储层
+│   ├── store.go               SQLite 存取（WAL + busy_timeout）+ DeleteError/ClearAll
+│   └── migrate.go             schema_version + 有序迁移（只增不改，升级无损）；
+│                              迁移 3：errors 重建为 AUTOINCREMENT（删除后 id 不复用）
+│
+├── cli/                       命令层：cobra，基本每个文件一个命令
+│   ├── record.go              ★ 失败主管线 recordFailure（run/hook 两条捕获路共用）
+│   ├── solved.go              成功检测 solvedHint（同程序成功才提示"looks fixed"）
+│   ├── hook_event.go          err hook-event（隐藏命令，hook 的回调入口，
+│   │                          --seq 对应 hook 写入缓冲的 OSC 哨兵）
+│   ├── root.go                根命令、版本号、启动时懒归档过期 pending
+│   ├── confirm.go             破坏性命令的确认语义（delete 认 y，clear 只认完整 yes）
+│   └── run.go / fix.go / show.go / pending.go / list.go / stats.go /
+│       history.go / ignore.go / init.go / doctor.go / delete.go / clear.go /
+│       uninstall.go           同名用户命令；pending/list/history 默认只显示
+│                              最近 20 条（--all 全量）
+│
+├── hint/hint.go               交互层：所有终端提示（--err-- 前缀，≤2 行，§7.6）
+├── termx/termx.go             交互层：ANSI 调色板（改颜色只动这个文件）+
+│                              runewidth 截断（CJK/emoji 不断字）+ ~/ 收缩 + TTY 判定
+├── list/list.go               交互层：err list 的 bubbletea TUI（Update 为纯函数；
+│                              光标窗口滚动只渲染可见行；w/s 导航、a/d 筛选、e 编辑）
+├── config/config.go           viper 配置 + XDG 路径 + ignore 黑名单
+└── eval/eval.go               评测：语料加载 + 两两判定 precision/recall/F1
 
-internal/capture/
-  run.go                     PTY 执行器 Run()：stdout 走 PTY、stderr 管道 tee
-                             （透传红线）、stdin 按是否 TTY 分流、窗口尺寸中继
-  context.go                 现场捕获 SceneFor()：命令行、cwd、git HEAD、
-                             python/node --version、OS
-
-internal/hooks/
-  hooks.go                   hook 脚本嵌入（go:embed）、rc 写入/精准移除
-  sessions.go                CleanStaleSessions：清理 7 天前的 session 缓冲
-  scripts/dejavu.zsh         zsh hook：preexec/precmd + stderr tee 分流
-                             + 命令边界哨兵
-  scripts/dejavu.bash        bash(3.2+) hook：DEBUG trap + PROMPT_COMMAND
-                             + 命令边界哨兵
-  integration_test.go        驱动 scripts/hook-it.* 跑真实 shell 集成测试
-  pty_e2e_test.go            真实 PTY 端到端：命令归属/vim 不提示/Ctrl-C
-                             不误记/looks-fixed 两行提示
-
-internal/fingerprint/
-  normalize.go               ANSI 剥离 + 归一化规则（uuid/ts/ip/addr/path/val/num）
-  signature.go               语言注册表（Extractor/Register）+ python/node 提取器
-  generic.go                 保底提取器（unknown）：只信明确错误标记
-                             （Exception in thread/panic:/fatal:/error:/shell 经典），
-                             注册在注册表最后，永不抢 python/node 的识别
-  simhash.go                 自实现 64 位 SimHash + 海明距离 + 相似阈值 6
-  fingerprint.go             Fingerprint()：管线入口（签名→hex 指纹）
-
-internal/match/match.go      Matcher 接口（Exact/Similar）+ SimHash 实现
-internal/store/store.go      SQLite 存取（WAL + busy_timeout）+ DeleteError/ClearAll
-internal/store/migrate.go    schema_version 表 + 有序迁移（只增不改）；
-                             迁移 3：errors 重建为 AUTOINCREMENT（删除后 id 不复用）
-internal/hint/hint.go        命中提示 / 解决提示（--err-- 前缀，faint 灰底 +
-                             命令名青色 + 关键词亮绿/亮白，≤2 行，§7.6）
-internal/termx/termx.go      NO_COLOR 感知 ANSI 调色板 + runewidth 显示宽度
-                             截断（CJK/emoji 不断字）+ ~/ 收缩 + TTY 判定
-internal/config/config.go    viper 配置 + XDG 路径 + ignore 黑名单
-internal/list/list.go        err list 的 bubbletea model（Update 为纯函数；
-                             光标窗口滚动，只渲染可见行）
-internal/eval/eval.go        语料加载 + 两两判定 precision/recall/F1
-eval/corpus.jsonl            示例语料（格式见 docs/eval.md）
-scripts/hook-it.{bash,zsh}   hook 集成测试脚本（参数：err 二进制路径）
+eval/corpus.jsonl              指纹评测示例语料（格式见 docs/eval.md）
+scripts/hook-it.{bash,zsh}     hook 集成测试脚本（参数：err 二进制路径）
 ```
 
 ## 数据流：两条捕获路径汇入同一主管线

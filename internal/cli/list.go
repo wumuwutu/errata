@@ -20,9 +20,9 @@ import (
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "Browse error history (TUI; plain table when not a terminal)",
-	Long: "list opens an interactive panel: navigate with ↑/↓, filter by language (l)\n" +
-		"and status (s), enter for details, e to edit the solution inline\n" +
-		"(enter saves, esc cancels).\n" +
+	Long: "list opens an interactive panel: navigate with w/s (or arrow keys),\n" +
+		"filter by language (a) and status (d), enter for details, e to edit\n" +
+		"the solution inline (enter saves, esc cancels).\n" +
 		"When stdout is not a terminal it prints a plain table instead.",
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {

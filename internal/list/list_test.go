@@ -37,6 +37,15 @@ func TestNavigationClamps(t *testing.T) {
 	if m7.(Model).Cursor != 0 {
 		t.Fatalf("cursor = %d, want clamped 0", m7.(Model).Cursor)
 	}
+	// w/s are the primary navigation keys (aliases: arrows, j/k)
+	m8, _ := m7.(Model).Update(key("s"))
+	if m8.(Model).Cursor != 1 {
+		t.Fatalf("s should move down, cursor = %d", m8.(Model).Cursor)
+	}
+	m9, _ := m8.(Model).Update(key("w"))
+	if m9.(Model).Cursor != 0 {
+		t.Fatalf("w should move up, cursor = %d", m9.(Model).Cursor)
+	}
 }
 
 func TestFilters(t *testing.T) {
@@ -44,20 +53,20 @@ func TestFilters(t *testing.T) {
 	if got := len(m.Visible()); got != 3 {
 		t.Fatalf("visible = %d, want 3", got)
 	}
-	// l: all -> python
-	m1, _ := m.Update(key("l"))
+	// a: all -> python
+	m1, _ := m.Update(key("a"))
 	if mv := m1.(Model); mv.Lang != "python" || len(mv.Visible()) != 2 {
 		t.Fatalf("lang=%q visible=%d", mv.Lang, len(mv.Visible()))
 	}
-	// s: all -> pending; combined with python: only #1
-	m2, _ := m1.(Model).Update(key("s"))
+	// d: all -> pending; combined with python: only #1
+	m2, _ := m1.(Model).Update(key("d"))
 	if mv := m2.(Model); mv.Status != "pending" || len(mv.Visible()) != 1 {
 		t.Fatalf("status=%q visible=%d", mv.Status, len(mv.Visible()))
 	}
 	// cycling status: pending -> resolved -> archived -> all
-	m3, _ := m2.(Model).Update(key("s"))
-	m4, _ := m3.(Model).Update(key("s"))
-	m5, _ := m4.(Model).Update(key("s"))
+	m3, _ := m2.(Model).Update(key("d"))
+	m4, _ := m3.(Model).Update(key("d"))
+	m5, _ := m4.(Model).Update(key("d"))
 	if mv := m5.(Model); mv.Status != "" {
 		t.Fatalf("status cycle should return to all, got %q", mv.Status)
 	}
