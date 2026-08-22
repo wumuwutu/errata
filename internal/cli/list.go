@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"text/tabwriter"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,7 +20,8 @@ var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "Browse error history (TUI; plain table when not a terminal)",
 	Long: "list opens an interactive panel: navigate with ↑/↓, filter by language (l)\n" +
-		"and status (s), enter for details, e to edit the solution in $EDITOR.\n" +
+		"and status (s), enter for details, e to edit the solution inline\n" +
+		"(enter saves, esc cancels).\n" +
 		"When stdout is not a terminal it prints a plain table instead.",
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -49,7 +49,6 @@ var listCmd = &cobra.Command{
 
 		m := list.New(items)
 		m.Save = st.AddFix
-		m.OpenEditor = openSolutionEditor
 		p := tea.NewProgram(m)
 		_, err = p.Run()
 		return err
@@ -70,36 +69,4 @@ func printErrorTable(w io.Writer, items []store.Error) {
 			e.LastSeen.Format("2006-01-02"), e.Signature)
 	}
 	tw.Flush() //nolint:errcheck
-}
-
-// openSolutionEditor opens $EDITOR on a temp file seeded with the current
-// solution; saving yields an EditFinishedMsg.
-func openSolutionEditor(e store.Error) tea.Cmd {
-	path := solutionTmpPath(e.ID)
-	if err := os.WriteFile(path, []byte(e.Solution), 0o600); err != nil {
-		return func() tea.Msg { return list.EditFinishedMsg{ErrorID: e.ID, Err: err} }
-	}
-	return tea.ExecProcess(solutionEditorCmd(path), func(err error) tea.Msg {
-		defer os.Remove(path) //nolint:errcheck
-		if err != nil {
-			return list.EditFinishedMsg{ErrorID: e.ID, Err: err}
-		}
-		data, rerr := os.ReadFile(path)
-		if rerr != nil {
-			return list.EditFinishedMsg{ErrorID: e.ID, Err: rerr}
-		}
-		return list.EditFinishedMsg{ErrorID: e.ID, Solution: string(data)}
-	})
-}
-
-func solutionEditorCmd(path string) *exec.Cmd {
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		editor = "vi"
-	}
-	return exec.Command(editor, path)
-}
-
-func solutionTmpPath(id int64) string {
-	return fmt.Sprintf("%s%cdejavu-solution-%d.txt", os.TempDir(), os.PathSeparator, id)
 }

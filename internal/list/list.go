@@ -1,55 +1,52 @@
-// Package list implements the err list TUI (bubbletea). All key handling
-// and filtering lives in the pure Update method so it can be unit-tested
-// without a terminal; side effects (opening $EDITOR, saving the solution)
-// are injected as function fields.
+// Package list implements the err list TUI (bubbletea). All key handling,
+// filtering and the inline editor state machine live in the pure Update
+// method so they can be unit-tested without a terminal; persistence is
+// injected as the Save function field.
 package list
 
 import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/wumuwutu/dejavu/internal/store"
 )
 
-// EditFinishedMsg reports the outcome of an $EDITOR session.
-type EditFinishedMsg struct {
-	ErrorID  int64
-	Solution string
-	Err      error
-}
-
 var (
 	// Language and status filter cycles; "" means "all".
-	langCycle   = []string{"", "python", "node"}
+	langCycle   = []string{"", "python", "node", "unknown"}
 	statusCycle = []string{"", "pending", "resolved", "archived"}
 
 	headerStyle = lipgloss.NewStyle().Faint(true)
 	cursorStyle = lipgloss.NewStyle().Bold(true)
-	statusStyle = lipgloss.NewStyle().Faint(true)
+	noticeStyle = lipgloss.NewStyle().Faint(true)
 )
 
 // Model is the bubbletea model for err list.
 type Model struct {
-	Items  []store.Error
-	Lang   string // active language filter, "" = all
-	Status string // active status filter, "" = all
-	Cursor int    // index into the filtered view
-	Detail bool   // detail view of the selected item
-	Notice string // transient one-line feedback (e.g. "solution saved")
+	Items   []store.Error
+	Lang    string // active language filter, "" = all
+	Status  string // active status filter, "" = all
+	Cursor  int    // index into the filtered view
+	Detail  bool   // detail view of the selected item
+	Editing bool   // inline solution editor active
+	Notice  string // transient one-line feedback (e.g. "solution saved")
 
-	// OpenEditor opens $EDITOR on the item's current solution and returns
-	// a command producing EditFinishedMsg. Injected by the caller.
-	OpenEditor func(e store.Error) tea.Cmd
+	input textinput.Model
+
 	// Save persists a new solution for an error. Injected by the caller.
 	Save func(id int64, solution string) error
 }
 
 // New builds a Model over items (expected: most recent first).
 func New(items []store.Error) Model {
-	return Model{Items: items}
+	in := textinput.New()
+	in.Prompt = "fix> "
+	in.Placeholder = "how you fixed it"
+	return Model{Items: items, input: in}
 }
 
 // Init implements tea.Model; nothing to load asynchronously.
@@ -71,35 +68,51 @@ func (m Model) Visible() []store.Error {
 }
 
 // Update handles keys. It is pure with respect to the outside world: the
-// only effects are the returned tea.Cmds built from the injected hooks.
+// only effect is calling the injected Save.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case EditFinishedMsg:
-		m.Detail = false
-		switch {
-		case msg.Err != nil:
-			m.Notice = "editor failed: " + msg.Err.Error()
-		case strings.TrimSpace(msg.Solution) == "":
-			m.Notice = "empty solution — not saved"
-		default:
-			if err := m.Save(msg.ErrorID, msg.Solution); err != nil {
-				m.Notice = "save failed: " + err.Error()
-			} else {
-				m.Notice = fmt.Sprintf("solution saved for error #%d", msg.ErrorID)
-				for i := range m.Items {
-					if m.Items[i].ID == msg.ErrorID {
-						m.Items[i].Solution = msg.Solution
-						m.Items[i].Pending = "resolved"
-					}
-				}
-			}
-		}
-		return m, nil
-
-	case tea.KeyMsg:
-		return m.updateKey(msg)
+	if m.Editing {
+		return m.updateEdit(msg)
+	}
+	if k, ok := msg.(tea.KeyMsg); ok {
+		return m.updateKey(k)
 	}
 	return m, nil
+}
+
+// updateEdit is the inline-editor state machine: enter saves, esc cancels,
+// everything else feeds the textinput.
+func (m Model) updateEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if k, ok := msg.(tea.KeyMsg); ok {
+		switch k.String() {
+		case "esc":
+			m.Editing = false
+			m.Notice = "edit cancelled"
+			return m, nil
+		case "enter":
+			m.Editing = false
+			sol := strings.TrimSpace(m.input.Value())
+			if sol == "" {
+				m.Notice = "empty solution — not saved"
+				return m, nil
+			}
+			id := m.Visible()[m.Cursor].ID
+			if err := m.Save(id, sol); err != nil {
+				m.Notice = "save failed: " + err.Error()
+				return m, nil
+			}
+			m.Notice = fmt.Sprintf("solution saved for error #%d", id)
+			for i := range m.Items {
+				if m.Items[i].ID == id {
+					m.Items[i].Solution = sol
+					m.Items[i].Pending = "resolved"
+				}
+			}
+			return m, nil
+		}
+	}
+	var cmd tea.Cmd
+	m.input, cmd = m.input.Update(msg)
+	return m, cmd
 }
 
 func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -134,8 +147,11 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.Detail = true
 		}
 	case "e":
-		if len(vis) > 0 && m.OpenEditor != nil {
-			return m, m.OpenEditor(vis[m.Cursor])
+		if len(vis) > 0 && m.Save != nil {
+			m.Editing = true
+			m.input.SetValue(vis[m.Cursor].Solution)
+			m.input.CursorEnd()
+			return m, m.input.Focus()
 		}
 	}
 	return m, nil
@@ -152,10 +168,19 @@ func cycle(options []string, cur string) string {
 
 // View renders the current state.
 func (m Model) View() string {
+	var b strings.Builder
 	if m.Detail {
-		return m.detailView()
+		b.WriteString(m.detailView())
+	} else {
+		b.WriteString(m.listView())
 	}
-	return m.listView()
+	if m.Editing {
+		b.WriteString(m.input.View() + "\n")
+	}
+	if m.Notice != "" {
+		b.WriteString(noticeStyle.Render(m.Notice) + "\n")
+	}
+	return b.String()
 }
 
 func (m Model) listView() string {
@@ -174,9 +199,6 @@ func (m Model) listView() string {
 	}
 	if len(vis) == 0 {
 		b.WriteString("  (no errors match)\n")
-	}
-	if m.Notice != "" {
-		b.WriteString(statusStyle.Render(m.Notice) + "\n")
 	}
 	return b.String()
 }

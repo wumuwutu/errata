@@ -1,7 +1,6 @@
 package list
 
 import (
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -79,35 +78,74 @@ func TestDetailEnterEsc(t *testing.T) {
 	}
 }
 
-func TestEditFinishedSaves(t *testing.T) {
+func TestInlineEditSave(t *testing.T) {
 	var savedID int64
 	var savedSol string
 	m := New(items())
 	m.Save = func(id int64, sol string) error { savedID, savedSol = id, sol; return nil }
 
-	m1, _ := m.Update(EditFinishedMsg{ErrorID: 1, Solution: "new fix"})
-	mv := m1.(Model)
-	if savedID != 1 || savedSol != "new fix" {
+	// e enters edit mode with the current solution prefilled.
+	tm, cmd := m.Update(key("e"))
+	m = tm.(Model)
+	if !m.Editing {
+		t.Fatal("e should enter edit mode")
+	}
+	if cmd == nil {
+		t.Fatal("entering edit mode should focus the input")
+	}
+	if m.input.Value() != "" {
+		t.Fatalf("item #1 has no solution, input should start empty, got %q", m.input.Value())
+	}
+
+	// Type the solution, then save with enter.
+	tm, _ = m.Update(key("x"))
+	m = tm.(Model)
+	tm, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = tm.(Model)
+	if m.Editing {
+		t.Fatal("enter should leave edit mode")
+	}
+	if savedID != 1 || savedSol != "x" {
 		t.Fatalf("Save got (%d, %q)", savedID, savedSol)
 	}
-	if mv.Items[0].Solution != "new fix" || mv.Items[0].Pending != "resolved" {
-		t.Fatalf("item not updated in place: %+v", mv.Items[0])
+	if m.Items[0].Solution != "x" || m.Items[0].Pending != "resolved" {
+		t.Fatalf("item not updated in place: %+v", m.Items[0])
 	}
-	if !strings.Contains(mv.Notice, "#1") {
-		t.Fatalf("notice = %q", mv.Notice)
+	if !strings.Contains(m.Notice, "#1") {
+		t.Fatalf("notice = %q", m.Notice)
 	}
 }
 
-func TestEditFinishedFailure(t *testing.T) {
+func TestInlineEditPrefillAndCancel(t *testing.T) {
 	m := New(items())
-	m.Save = func(int64, string) error { return errors.New("db gone") }
-	m1, _ := m.Update(EditFinishedMsg{ErrorID: 1, Solution: "x"})
-	if !strings.Contains(m1.(Model).Notice, "save failed") {
-		t.Fatalf("notice = %q", m1.(Model).Notice)
+	m.Save = func(int64, string) error { t.Fatal("Save must not be called"); return nil }
+
+	// Select item #2 (has a solution), open editor: prefilled.
+	tm, _ := m.Update(key("down"))
+	m = tm.(Model)
+	tm, _ = m.Update(key("e"))
+	m = tm.(Model)
+	if m.input.Value() != "fixed" {
+		t.Fatalf("input prefilled with %q, want %q", m.input.Value(), "fixed")
 	}
-	m2, _ := m.Update(EditFinishedMsg{ErrorID: 1, Solution: "  "})
-	if !strings.Contains(m2.(Model).Notice, "empty") {
-		t.Fatalf("notice = %q", m2.(Model).Notice)
+
+	// esc cancels without saving.
+	tm, _ = m.Update(key("esc"))
+	m = tm.(Model)
+	if m.Editing || m.Notice != "edit cancelled" {
+		t.Fatalf("after esc: editing=%v notice=%q", m.Editing, m.Notice)
+	}
+}
+
+func TestInlineEditEmptyNotSaved(t *testing.T) {
+	m := New(items())
+	m.Save = func(int64, string) error { t.Fatal("Save must not be called"); return nil }
+	tm, _ := m.Update(key("e"))
+	m = tm.(Model)
+	tm, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter}) // empty input
+	m = tm.(Model)
+	if !strings.Contains(m.Notice, "empty") {
+		t.Fatalf("notice = %q", m.Notice)
 	}
 }
 
@@ -118,7 +156,7 @@ func TestEmptyList(t *testing.T) {
 		t.Fatal("enter on empty list must not open detail")
 	}
 	m2, _ := m.Update(key("e"))
-	if _, isModel := m2.(Model); !isModel {
-		t.Fatal("e on empty list should be a no-op")
+	if m2.(Model).Editing {
+		t.Fatal("e on empty list must not start editing")
 	}
 }
