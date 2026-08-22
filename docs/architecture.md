@@ -20,6 +20,9 @@ internal/cli/                cobra 命令层（每个文件一个命令）
   solved.go                  solvedHint：成功命令的"好像解决了？"提示
   fix.go                     err fix：无参时直接取最近一条 pending（两行摘要
                              含触发命令 + 立即输入 solution）
+  delete.go / clear.go       err delete（y/yes 确认）/ err clear（必须输入
+                             完整 yes）；--yes 跳过确认，非 TTY 无 --yes 拒绝
+  confirm.go                 破坏性命令的确认输入语义
   show.go / pending.go / list.go / stats.go / history.go /
   ignore.go / init.go / doctor.go / uninstall.go
                              同名用户命令；*_test.go 为对应测试；
@@ -52,8 +55,9 @@ internal/fingerprint/
   fingerprint.go             Fingerprint()：管线入口（签名→hex 指纹）
 
 internal/match/match.go      Matcher 接口（Exact/Similar）+ SimHash 实现
-internal/store/store.go      SQLite 存取（WAL + busy_timeout）
-internal/store/migrate.go    schema_version 表 + 有序迁移（只增不改）
+internal/store/store.go      SQLite 存取（WAL + busy_timeout）+ DeleteError/ClearAll
+internal/store/migrate.go    schema_version 表 + 有序迁移（只增不改）；
+                             迁移 3：errors 重建为 AUTOINCREMENT（删除后 id 不复用）
 internal/hint/hint.go        命中提示 / 解决提示（--err-- 前缀，faint 灰底 +
                              命令名青色 + 关键词亮绿/亮白，≤2 行，§7.6）
 internal/termx/termx.go      NO_COLOR 感知 ANSI 调色板 + runewidth 显示宽度
@@ -108,13 +112,13 @@ recordFailure(commandLine, dir, stderr, cfg, hintOut):
      命令名（err fix/err show）青色（ANSI 36），ASCII 短横线
 ```
 
-## SQLite schema（迁移 1 + 2，见 internal/store/migrate.go）
+## SQLite schema（迁移 1–3，见 internal/store/migrate.go）
 
 **errors** — 一条"错误档案"（§1.2 四要素）：
 
 | 字段 | 来源 | 说明 |
 |---|---|---|
-| id | 自增 | 主键 |
+| id | 自增 | 主键；迁移 3 起为 AUTOINCREMENT（删除后不复用旧 id） |
 | fingerprint | 推导 | SimHash hex，UNIQUE；同错去重的键 |
 | signature | 推导 | 归一化后的错误签名（如 `TypeError: ... <VAL>`） |
 | raw_sample | 原始事实 | 最近一次出现的 stderr 原文（去 ANSI） |

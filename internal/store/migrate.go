@@ -56,6 +56,33 @@ var migrations = []string{
 	// 2: success-detection reminders (dev-guide §7.2 DETECTED_SUCCESS) —
 	// one nudge per error per 24h needs a persisted "last reminded" mark.
 	`ALTER TABLE pending ADD COLUMN reminded_at TIMESTAMP;`,
+
+	// 3: err delete/clear must never lead to reused ids (a fresh record
+	// wearing an old id would inherit that id's mental history). Rebuild
+	// errors with AUTOINCREMENT so SQLite keeps the high-water mark in
+	// sqlite_sequence. Data is copied verbatim; errors_fts keys off
+	// rowid (= errors.id) and stays valid.
+	`CREATE TABLE errors_new (
+	  id INTEGER PRIMARY KEY AUTOINCREMENT,
+	  fingerprint TEXT UNIQUE,
+	  signature TEXT,
+	  raw_sample TEXT,
+	  language TEXT,
+	  command TEXT,
+	  project_dir TEXT,
+	  git_commit TEXT,
+	  runtime TEXT,
+	  os TEXT,
+	  created_at TIMESTAMP,
+	  first_seen TIMESTAMP,
+	  last_seen TIMESTAMP,
+	  count INTEGER DEFAULT 1
+	);
+	INSERT INTO errors_new SELECT id, fingerprint, signature, raw_sample,
+	  language, command, project_dir, git_commit, runtime, os,
+	  created_at, first_seen, last_seen, count FROM errors;
+	DROP TABLE errors;
+	ALTER TABLE errors_new RENAME TO errors;`,
 }
 
 // migrate brings the database to the latest schema version, one migration

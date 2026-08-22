@@ -306,6 +306,57 @@ func (s *Store) ArchiveStalePending(cutoff time.Time) (int64, error) {
 	return int64(len(stale)), nil
 }
 
+// DeleteError removes one error record together with its fixes, pending
+// entries and FTS row. Reports whether the record existed.
+func (s *Store) DeleteError(id int64) (bool, error) {
+	res, err := s.db.Exec(`DELETE FROM errors WHERE id = ?`, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if n == 0 {
+		return false, nil
+	}
+	for _, q := range []string{
+		`DELETE FROM fixes WHERE error_id = ?`,
+		`DELETE FROM pending WHERE error_id = ?`,
+		`DELETE FROM errors_fts WHERE rowid = ?`,
+	} {
+		if _, err := s.db.Exec(q, id); err != nil {
+			return true, err
+		}
+	}
+	return true, nil
+}
+
+// ClearAll wipes every error record (with fixes, pending entries and the
+// FTS index) and resets the id sequence, returning how many error records
+// were removed. Config and the ignore list live outside the database and
+// are untouched.
+func (s *Store) ClearAll() (int64, error) {
+	var n int64
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM errors`).Scan(&n); err != nil {
+		return 0, err
+	}
+	for _, q := range []string{
+		`DELETE FROM fixes`,
+		`DELETE FROM pending`,
+		`DELETE FROM errors_fts`,
+		`DELETE FROM errors`,
+	} {
+		if _, err := s.db.Exec(q); err != nil {
+			return 0, err
+		}
+	}
+	// Back to the pristine state: ids start at 1 again (best effort —
+	// sqlite_sequence exists once migration 3 has run).
+	_, _ = s.db.Exec(`DELETE FROM sqlite_sequence`)
+	return n, nil
+}
+
 // ListAll returns every error record, most recently seen first.
 func (s *Store) ListAll() ([]Error, error) {
 	rows, err := s.db.Query(selectError + ` ORDER BY e.last_seen DESC, e.id DESC`)

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
@@ -325,5 +326,124 @@ func TestStats(t *testing.T) {
 	}
 	if total != 2 {
 		t.Fatalf("weekly new total = %d, want 2 (old error excluded)", total)
+	}
+}
+
+func TestDeleteError(t *testing.T) {
+	s := openTemp(t)
+	id, _, err := s.UpsertError(sample("00000000000000aa"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddFix(id, "the fix"); err != nil {
+		t.Fatal(err)
+	}
+
+	ok, err := s.DeleteError(id)
+	if err != nil || !ok {
+		t.Fatalf("DeleteError: ok=%v err=%v", ok, err)
+	}
+	if e, _ := s.Get(id); e != nil {
+		t.Fatalf("error %d still present", id)
+	}
+	items, _ := s.ListPending()
+	if len(items) != 0 {
+		t.Fatalf("pending row survived delete: %+v", items)
+	}
+	resolved, total, _ := s.RecordRate()
+	if resolved != 0 || total != 0 {
+		t.Fatalf("fix row survived delete: %d/%d", resolved, total)
+	}
+
+	ok, err = s.DeleteError(id)
+	if err != nil || ok {
+		t.Fatalf("second delete: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestClearAll(t *testing.T) {
+	s := openTemp(t)
+	for _, fp := range []string{"00000000000000a1", "00000000000000a2", "00000000000000a3"} {
+		if _, _, err := s.UpsertError(sample(fp)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	n, err := s.ClearAll()
+	if err != nil || n != 3 {
+		t.Fatalf("ClearAll = %d, %v; want 3", n, err)
+	}
+	if items, _ := s.ListAll(); len(items) != 0 {
+		t.Fatalf("records survived clear: %d", len(items))
+	}
+	// After a clear the library is pristine: ids start at 1 again.
+	id, _, err := s.UpsertError(sample("00000000000000b1"))
+	if err != nil || id != 1 {
+		t.Fatalf("first id after clear = %d, %v; want 1", id, err)
+	}
+}
+
+// TestMigration3Autoincrement: a v0.1.5 (schema v2) database upgrades in
+// place, data intact, and ids are never reused after deleting the max id.
+func TestMigration3Autoincrement(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "dejavu.db")
+
+	// Build a schema-v2 database by hand (migrations 1+2 only).
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if _, err := db.Exec(migrations[i]); err != nil {
+			t.Fatalf("legacy migration %d: %v", i+1, err)
+		}
+	}
+	if _, err := db.Exec(`DELETE FROM schema_version`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO schema_version (version) VALUES (2)`); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().Format(timeLayout)
+	for i, fp := range []string{"aaaaaaaaaaaaaaa1", "aaaaaaaaaaaaaaa2"} {
+		if _, err := db.Exec(
+			`INSERT INTO errors (fingerprint, signature, language, command, project_dir,
+			  created_at, first_seen, last_seen, count) VALUES (?,?,?,?,?,?,?,?,1)`,
+			fp, "TypeError: legacy", "python", "python app.py", "/proj", now, now, now); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Exec(
+			`INSERT INTO pending (error_id, detected_at, status) VALUES (?,?,'pending')`,
+			i+1, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Open upgrades to v3; both records survive with their ids.
+	s, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open upgrade: %v", err)
+	}
+	defer s.Close()
+	items, err := s.ListAll()
+	if err != nil || len(items) != 2 {
+		t.Fatalf("after upgrade: %d items, %v", len(items), err)
+	}
+	if items[0].Signature != "TypeError: legacy" || items[0].ID == 0 {
+		t.Fatalf("data damaged: %+v", items[0])
+	}
+
+	// Delete the max id, insert a new error: the id must NOT be reused.
+	if ok, err := s.DeleteError(2); err != nil || !ok {
+		t.Fatalf("delete max id: ok=%v err=%v", ok, err)
+	}
+	id, _, err := s.UpsertError(sample("aaaaaaaaaaaaaaa3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != 3 {
+		t.Fatalf("new id = %d, want 3 (no reuse)", id)
 	}
 }

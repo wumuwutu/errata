@@ -71,6 +71,10 @@ err stats
 # Every pit one project put you through, oldest first:
 err history --project ~/projects/api
 
+# Delete one record, or wipe the whole library (both ask first):
+err delete 3
+err clear
+
 # Self-check (db, hook installation, prompt latency budget):
 err doctor
 
@@ -164,7 +168,8 @@ Corpus format and annotation guide: [docs/eval.md](docs/eval.md). Sample corpus:
 cmd/err/              main package (binary name: err)
 cmd/err-eval/         fingerprint evaluation tool (separate binary)
 internal/cli/         cobra commands (run / fix / show / pending / list / stats /
-                      history / ignore / init / doctor / uninstall + hidden hook-event)
+                      history / ignore / init / doctor / delete / clear / uninstall
+                      + hidden hook-event)
 internal/capture/     PTY passthrough executor + scene capture
 internal/hooks/       embedded zsh/bash hook scripts + rc writer
 internal/fingerprint/ ANSI strip, normalization, signature extraction, SimHash
