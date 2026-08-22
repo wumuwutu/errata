@@ -4,6 +4,16 @@
 # the DEBUG trap snapshots the buffer offset and command line once per
 # command line, PROMPT_COMMAND checks $? and calls `err hook-event` at
 # most once, only on failure with fresh stderr.
+#
+# Command attribution does NOT rely on the byte offset alone: tee flushes
+# asynchronously (and interactive shells write the prompt + input echo to
+# stderr too), so bytes from an earlier command can land in the buffer
+# after the next command's offset snapshot. To cut the buffer exactly at
+# command boundaries, preexec writes an invisible OSC sentinel to stderr
+# after snapshotting; it reaches the buffer FIFO-ordered behind any
+# straggler bytes, and hook-event only reads what follows it. Keep the
+# sentinel format in sync with sentinelPrefix in internal/cli/hook_event.go.
+#
 # If the err binary is missing, everything below degrades to a no-op.
 
 command -v err >/dev/null 2>&1 || return 0
@@ -17,8 +27,8 @@ __dejavu_sess="$__dejavu_dir/sess-$$"
 : >> "$__dejavu_sess.err" 2>/dev/null
 
 __dejavu_preexec() {
-  # Only the first simple command of a line snapshots the offset; the flag
-  # is (re)armed by the prompt hook. Also never react to our own prompt hook.
+  # Only the first simple command of a line snapshots; the flag is
+  # (re)armed by the prompt hook. Also never react to our own prompt hook.
   [ -n "$__dejavu_at_prompt" ] || return 0
   case "$BASH_COMMAND" in
     __dejavu_prompt*) return 0 ;;
@@ -32,21 +42,29 @@ __dejavu_preexec() {
   __dejavu_cmd=$(HISTTIMEFORMAT= builtin history 1 2>/dev/null)
   __dejavu_cmd=${__dejavu_cmd#*[0-9]  }
   [ -n "$__dejavu_cmd" ] || __dejavu_cmd="$BASH_COMMAND"
+  # Command-boundary sentinel (invisible OSC escape; see header comment).
+  __dejavu_seq=$(( ${__dejavu_seq:-0} + 1 ))
+  printf '\033]6973;dejavu;%s\007' "$__dejavu_seq" >&2
 }
 
 __dejavu_prompt() {
   local ec=$?
   __dejavu_at_prompt=1
+  # Consume the command line unconditionally: an empty line or Ctrl-C
+  # reuses $?, so a stale value here would attribute old stderr to a
+  # command that never failed.
+  local cmd="$__dejavu_cmd"
+  __dejavu_cmd=
   command -v err >/dev/null 2>&1 || return "$ec"
+  [ -n "$cmd" ] || return "$ec"
   if [ "$ec" -eq 0 ]; then
     # Success: maybe a pending error just got fixed (dev-guide 7.2
     # DETECTED_SUCCESS). Cheap gate: no database file => nothing pending
     # => no subprocess, the prompt path stays at zero cost.
     [ -f "${XDG_DATA_HOME:-$HOME/.local/share}/dejavu/dejavu.db" ] || return "$ec"
-    err hook-event --exit-code 0 --cwd "$PWD" --command "$__dejavu_cmd" 2>/dev/null
+    err hook-event --exit-code 0 --cwd "$PWD" --command "$cmd" 2>/dev/null
     return "$ec"
   fi
-  [ -n "$__dejavu_cmd" ] || return "$ec"
   local size
   size=$(wc -c < "$__dejavu_sess.err" 2>/dev/null)
   size=${size//[[:space:]]/}
@@ -60,9 +78,8 @@ __dejavu_prompt() {
     size=${size:-0}
   fi
   [ "$size" -gt "${__dejavu_off:-0}" ] 2>/dev/null || return "$ec"
-  local cmd="$__dejavu_cmd"
-  __dejavu_cmd=
   err hook-event --exit-code "$ec" --offset "${__dejavu_off:-0}" \
+    --seq "${__dejavu_seq:-0}" \
     --stderr-file "$__dejavu_sess.err" --cwd "$PWD" --command "$cmd" 2>/dev/null
   return "$ec"
 }

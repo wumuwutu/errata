@@ -13,7 +13,8 @@ cmd/err-eval/main.go         指纹评测独立入口（不污染主 CLI）
 internal/cli/                cobra 命令层（每个文件一个命令）
   root.go                    根命令、版本号、启动时懒归档过期 pending
   run.go                     err run：PTY 包装执行（runWrapped）
-  hook_event.go              err hook-event（隐藏）：shell hook 的回调入口
+  hook_event.go              err hook-event（隐藏）：shell hook 的回调入口；
+                             --seq 对应 hook 写入缓冲的 OSC 哨兵
   record.go                  recordFailure：失败命令的"指纹→匹配→存储→提示"
                              主流程（run 和 hook 两条捕获路径共用）
   solved.go                  solvedHint：成功命令的"好像解决了？"提示
@@ -31,8 +32,12 @@ internal/hooks/
   hooks.go                   hook 脚本嵌入（go:embed）、rc 写入/精准移除
   sessions.go                CleanStaleSessions：清理 7 天前的 session 缓冲
   scripts/dejavu.zsh         zsh hook：preexec/precmd + stderr tee 分流
+                             + 命令边界哨兵
   scripts/dejavu.bash        bash(3.2+) hook：DEBUG trap + PROMPT_COMMAND
+                             + 命令边界哨兵
   integration_test.go        驱动 scripts/hook-it.* 跑真实 shell 集成测试
+  pty_e2e_test.go            真实 PTY 端到端：命令归属/vim 不提示/Ctrl-C
+                             不误记/looks-fixed 两行提示
 
 internal/fingerprint/
   normalize.go               ANSI 剥离 + 归一化规则（uuid/ts/ip/addr/path/val/num）
@@ -65,16 +70,24 @@ A. err run python app.py
 
 B. shell hook（用户在 hooked shell 里跑任意命令）
    scripts/dejavu.{zsh,bash}
-     preexec/DEBUG: 快照 stderr 缓冲偏移 + 命令行
-     precmd/PROMPT_COMMAND: 读 $?
+     preexec/DEBUG: 快照 stderr 缓冲偏移 + 命令行，然后向 stderr 写一个
+       不可见 OSC 哨兵（\x1b]6973;dejavu;<seq>\a，终端静默忽略）。
+       哨兵在 tee 管道里 FIFO 排在所有滞留字节之后——tee 异步落盘再慢
+       （WSL 实测可达秒级），前一条命令的 stderr/prompt 回显/err 自身输出
+       也永远不会越过哨兵进入本命令的增量（v0.1.5 修复命令错位）
+     precmd/PROMPT_COMMAND: 读 $?，并无条件消费/清空 __dejavu_cmd
+       （空行或 Ctrl-C 复用上一条的 $?，陈旧命令文本会造成错位归属）
        成功 → err hook-event --exit-code 0 --cwd $PWD --command C
-              → cli/hook_event.go:31 → cli/solved.go:21 solvedHint()
+              → cli/hook_event.go → cli/solved.go:21 solvedHint()
               （同目录 5 分钟内有 pending，且成功命令与报错命令是同一程序
-               （python3==python）→ 灰色一行提醒，24h 内不重复；
+               （python3==python）→ 灰色两行提醒，24h 内不重复；
                无关命令（如 ls）成功不提醒——用户实测纠偏，见 827be5c）
        失败且 stderr 缓冲增长 → err hook-event --exit-code N --offset O \
-              --stderr-file F --cwd D --command C
-              → cli/hook_event.go:31 → 读增量 → cli/record.go:20 recordFailure()
+              --seq S --stderr-file F --cwd D --command C
+              → cli/hook_event.go → 读增量：从 offset 起读，取最后一个
+              seq=S 哨兵之后的字节（找不到哨兵 = 还在 tee 管道里 →
+              宁可漏报也不错位）；seq=0 兼容旧版 hook（未重启 shell）
+              → cli/record.go:20 recordFailure()
 
 recordFailure(commandLine, dir, stderr, cfg, hintOut):
   1. ignore 黑名单 / err 自身命令 → 跳过
@@ -84,7 +97,7 @@ recordFailure(commandLine, dir, stderr, cfg, hintOut):
   3. store.Open()（migrate 自动升级 schema）
   4. cli/record.go:71 findHit(match.SimHash, fp) → 精确命中 or 相似降级
   5. store/store.go:147 UpsertError() → 新错误建记录+pending；旧错误 count++
-  6. hint/hint.go:25 Print() → ≤2 行灰色提示（见过 N 次/解法/相似错误）
+  6. hint/hint.go Print() → ≤2 行灰色提示（见过 N 次/解法/相似错误）
 ```
 
 ## SQLite schema（迁移 1 + 2，见 internal/store/migrate.go）

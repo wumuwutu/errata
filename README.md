@@ -32,6 +32,9 @@ file it touched and never appends twice). fish and other shells are not supporte
 The hook is invisible by design: stderr still reaches your terminal byte-for-byte
 (it is tee'd, never intercepted), the success path spawns zero extra processes
 (<50ms prompt budget), and a missing `err` binary degrades the hook to a no-op.
+An invisible sentinel written at command start delimits each command's stderr in the
+session buffer, so a slow tee (or output of an `err ...` command you ran in between)
+can never attribute one command's error to another.
 
 ## Quick start
 

@@ -65,6 +65,8 @@ check "session completed" grep -q 'SESSION-DONE' "$TMP/out.txt"
 check "success hint shown" grep -q 'looks fixed' "$TMP/out.txt"
 hint_count=$(grep -c 'looks fixed' "$TMP/out.txt")
 check "success hint not repeated" test "$hint_count" -eq 1
+# 6b. Command attribution: the recorded command is the one that failed.
+check "command attributed to failing python" grep -q "command:.*python3 .*fail.py" "$TMP/show1.txt"
 
 if [ "$fails" -gt 0 ]; then
   echo "---"

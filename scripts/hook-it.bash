@@ -64,6 +64,8 @@ check "session completed" grep -q 'SESSION-DONE' "$TMP/out.txt"
 check "success hint shown" grep -q 'looks fixed' "$TMP/out.txt"
 hint_count=$(grep -c 'looks fixed' "$TMP/out.txt")
 check "success hint not repeated" test "$hint_count" -eq 1
+# 6b. Command attribution: the recorded command is the one that failed.
+check "command attributed to failing python" grep -q "command:.*python3 .*fail.py" "$TMP/show1.txt"
 # 7. The ignore blacklist applies on the hook path too.
 "$ERR" ignore add --command python3 >/dev/null 2>&1
 printf '%s\n' \
@@ -85,7 +87,11 @@ printf '%s\n' \
   'echo UNRELATED-DONE' \
   | bash --rcfile "$TMP/rc" -i >"$TMP/out3.txt" 2>&1
 check "unrelated success stays quiet" bash -c "! grep -q 'looks fixed' '$TMP/out3.txt'"
-# 9. fish (and other shells) are rejected gracefully.
+# 9. A second distinct failure keeps its own command (no cross-command
+#    attribution even when errors interleave with other commands).
+"$ERR" show 2 >"$TMP/show2.txt" 2>&1
+check "earlier error kept its command" grep -q "command:.*python3 .*fail2.py" "$TMP/show2.txt"
+# 10. fish (and other shells) are rejected gracefully.
 fish_out=$("$ERR" init fish 2>"$TMP/fish.err")
 [ -z "$fish_out" ] && grep -q 'no shell hook' "$TMP/fish.err"
 check "fish rejected gracefully" test $? -eq 0
