@@ -91,8 +91,8 @@ func TestPrintColors(t *testing.T) {
 	if !strings.Contains(out, "\x1b[90m--err--") {
 		t.Errorf("base text not faint: %q", out)
 	}
-	if !strings.Contains(out, "\x1b[97mreinstall with conda deactivated") {
-		t.Errorf("solution not bright: %q", out)
+	if !strings.Contains(out, "\x1b[32mreinstall with conda deactivated") {
+		t.Errorf("solution not green: %q", out)
 	}
 	if !strings.Contains(out, "\x1b[36merr show 3") {
 		t.Errorf("command not cyan: %q", out)
@@ -137,7 +137,7 @@ func TestPrintSolvedTwoLines(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("solved hint should be 2 lines, got %d: %q", len(lines), out)
 	}
-	if lines[0] != "--err-- looks fixed: TypeError: boom" {
+	if lines[0] != "--err-- looks fixed: err #3" {
 		t.Fatalf("first line wrong: %q", lines[0])
 	}
 	if lines[1] != "err fix to record the solution" {
@@ -155,8 +155,8 @@ func TestPrintSolvedColors(t *testing.T) {
 	if !strings.Contains(out, "\x1b[92mlooks fixed") {
 		t.Errorf("keyword not bright green: %q", out)
 	}
-	if !strings.Contains(out, "\x1b[97mTypeError: boom") {
-		t.Errorf("signature not bright: %q", out)
+	if !strings.Contains(out, "\x1b[97merr #3") {
+		t.Errorf("error number not bright: %q", out)
 	}
 	if !strings.Contains(out, "\x1b[36merr fix") {
 		t.Errorf("command not cyan: %q", out)

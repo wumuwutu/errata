@@ -210,11 +210,11 @@ func TestHookAttributionPTY(t *testing.T) {
 			if n := strings.Count(tr, "looks fixed"); n != 1 {
 				t.Errorf("looks-fixed nudge count = %d, want 1\ntranscript:\n%s", n, tr)
 			}
-			// The nudge must name the SECOND error (the latest pending) and
-			// keep its two-line shape.
+			// The nudge must name the SECOND error (the latest pending) by
+			// number and keep its two-line shape.
 			for _, ln := range strings.Split(tr, "\n") {
 				if strings.Contains(ln, "looks fixed") {
-					if !strings.Contains(ln, "ModuleNotFoundError") {
+					if !strings.Contains(ln, "err #2") {
 						t.Errorf("nudge names the wrong error: %q", ln)
 					}
 					if strings.Contains(ln, "err fix") {

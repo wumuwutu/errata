@@ -1,9 +1,9 @@
 // Package hint renders the restrained notices shown when a captured error
 // has been seen before (dev-guide §7.6: at most two lines, faint gray,
 // never steal the show). All errata notices share one style: a `--err--`
-// prefix, faint base text, cyan command names and bright key payloads, so
-// they read as system text next to the user's own terminal output. Colors
-// honor NO_COLOR (see internal/termx).
+// prefix, faint base text, cyan command names, bright key payloads and
+// green solution text, so they read as system text next to the user's own
+// terminal output. Colors honor NO_COLOR (see internal/termx).
 package hint
 
 import (
@@ -46,7 +46,7 @@ func Print(w io.Writer, rec *store.Error, similar bool) {
 		if rec.Solution != "" {
 			b.WriteString("\n")
 			b.WriteString(termx.Faint("fix: "))
-			b.WriteString(termx.Bright(truncate(rec.Solution)))
+			b.WriteString(termx.Solution(truncate(rec.Solution)))
 			b.WriteString(termx.Faint(" ("))
 			b.WriteString(termx.Cyan("err show " + id))
 			b.WriteString(termx.Faint(" for details)"))
@@ -64,14 +64,15 @@ func Print(w io.Writer, rec *store.Error, similar bool) {
 
 // PrintSolved writes the "did you just fix this?" nudge after a successful
 // command near a fresh pending error (dev-guide §7.2 DETECTED_SUCCESS):
-// exactly two lines, "looks fixed" in bright green, signature in bright
-// white, command name in cyan.
+// exactly two lines, "looks fixed" in bright green, the error number in
+// bright white, command name in cyan. The signature stays out — `err show`
+// has it; the nudge only needs the number.
 func PrintSolved(w io.Writer, e *store.Error) {
 	if e == nil {
 		return
 	}
 	fmt.Fprintln(w, termx.Faint(prefix+" ")+termx.Green("looks fixed")+termx.Faint(": ")+
-		termx.Bright(truncate(e.Signature))+"\n"+termx.Cyan("err fix")+termx.Faint(" to record the solution"))
+		termx.Bright("err #"+strconv.FormatInt(e.ID, 10))+"\n"+termx.Cyan("err fix")+termx.Faint(" to record the solution"))
 }
 
 // truncate collapses whitespace and cuts to maxSolutionCols display

@@ -108,7 +108,7 @@ targetless commands like `pip` fall back to program-only matching) — err print
 short gray lines:
 
 ```
---err-- looks fixed: <signature>
+--err-- looks fixed: err #3
 err fix to record the solution
 ```
 
@@ -140,7 +140,8 @@ at most once per error per day. Unrelated successes (`ls`, `vim`, …) never tri
 - **Hints** — every errata notice starts with `--err--` and uses faint gray
   (ANSI 90) base text, so it reads as system text next to your own terminal
   output: command names (`err fix` / `err show` / `err pending`) in cyan,
-  `looks fixed` in bright green, signatures and solutions in bright white.
+  `looks fixed` in bright green, error numbers and signatures in bright
+  white, solutions in green.
   At most two lines per notice; restraint is a feature. Colors honor
   `NO_COLOR`; piped CLI output stays plain. Set `hint.enabled: false` in the
   config to turn the capture-time hints off.

@@ -106,7 +106,8 @@ recordFailure(commandLine, dir, stderr, cfg, hintOut):
   4. cli/record.go:71 findHit(match.SimHash, fp) → 精确命中 or 相似降级
   5. store/store.go:147 UpsertError() → 新错误建记录+pending；旧错误 count++
   6. hint/hint.go Print() → ≤2 行灰色提示（见过 N 次/解法/相似错误），
-     命令名（err fix/err show）青色（ANSI 36），ASCII 短横线
+     命令名（err fix/err show）青色（ANSI 36）、解法绿色（32）、
+     looks-fixed 只带错误编号（err #N），ASCII 短横线
 ```
 
 ## SQLite schema（迁移 1–3，见 internal/store/migrate.go）

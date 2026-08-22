@@ -65,7 +65,7 @@ var fixCmd = &cobra.Command{
 			return err
 		}
 		fmt.Fprintln(cmd.ErrOrStderr(), termx.Faint("--err-- solution recorded for error #"+
-			strconv.FormatInt(target.ID, 10)+" (")+termx.Bright(termx.Truncate(target.Signature, 60))+termx.Faint(")"))
+			strconv.FormatInt(target.ID, 10)))
 		if more > 0 {
 			fmt.Fprintln(cmd.ErrOrStderr(), termx.Faint("--err-- "+strconv.Itoa(more)+" more pending: ")+
 				termx.Cyan("err pending")+termx.Faint(" to see"))

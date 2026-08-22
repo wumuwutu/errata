@@ -15,7 +15,8 @@ import (
 // Palette. faint is the base color of every errata notice (kept visually
 // distinct from the user's own terminal text); cyan marks command names;
 // green marks the "looks fixed" keyword; bright marks key payloads like
-// the error signature or the recorded solution.
+// the error signature; solutionGreen marks the recorded solution — the
+// core content — in plain green, distinct from the bright green keyword.
 //
 // 想自己改颜色？只改下面这几个值即可，所有提示颜色都从这里取。
 // 常用 ANSI 色码速查（\x1b[<code>m）：
@@ -33,7 +34,9 @@ const (
 	bright    = "\x1b[97m"
 	red       = "\x1b[31m"
 	brightRed = "\x1b[91m"
-	reset     = "\x1b[0m"
+	// 解法文字专用：普通绿（32），与 looks fixed 关键词的亮绿（92）区分开。
+	solutionGreen = "\x1b[32m"
+	reset         = "\x1b[0m"
 )
 
 // NoColor disables all palette output. Initialized from the NO_COLOR
@@ -57,8 +60,13 @@ func Cyan(s string) string { return paint(cyan, s) }
 // Green paints the "looks fixed" keyword in bright green.
 func Green(s string) string { return paint(green, s) }
 
-// Bright paints key payloads (error signature, solution) in bright white.
+// Bright paints key payloads (error signature, error number) in bright white.
 func Bright(s string) string { return paint(bright, s) }
+
+// Solution paints the recorded solution in plain green (32) — the core
+// content of a hit hint, kept distinct from the bright green (92)
+// "looks fixed" keyword.
+func Solution(s string) string { return paint(solutionGreen, s) }
 
 // Red paints in plain red (reserved for warnings that should not shout).
 func Red(s string) string { return paint(red, s) }

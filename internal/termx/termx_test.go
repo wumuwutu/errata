@@ -54,9 +54,13 @@ func TestPaletteNoColor(t *testing.T) {
 	if got := Faint("x"); !strings.HasPrefix(got, faint) || !strings.HasSuffix(got, reset) {
 		t.Fatalf("colored faint: %q", got)
 	}
+	if got := Solution("x"); !strings.HasPrefix(got, solutionGreen) || !strings.HasSuffix(got, reset) {
+		t.Fatalf("colored solution: %q", got)
+	}
 	NoColor = true
 	if Faint("--err-- seen") != "--err-- seen" || Cyan("err fix") != "err fix" ||
-		Green("looks fixed") != "looks fixed" || Bright("TypeError: boom") != "TypeError: boom" {
+		Green("looks fixed") != "looks fixed" || Bright("TypeError: boom") != "TypeError: boom" ||
+		Solution("reinstall it") != "reinstall it" {
 		t.Fatal("NoColor must pass text through unchanged")
 	}
 }
