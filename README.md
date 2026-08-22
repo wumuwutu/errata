@@ -51,7 +51,9 @@ err fix -m "LD_LIBRARY_PATH was polluted by conda; conda deactivate and reinstal
 
 # The next time the same error recurs — even from a different path, with
 # different line numbers — a two-line gray hint appears under the traceback
-# with the date, directory, occurrence count and your solution.
+# with the date, directory, occurrence count and your solution:
+#   - err - seen 2026-08-22 in ~/proj (occurrence #2)
+#   fix: LD_LIBRARY_PATH was polluted by conda; ... (err show 3 for details)
 
 # List errors you haven't written a solution for, plus your record rate:
 err pending
@@ -90,9 +92,14 @@ automatically — never deleted, just out of the pending queue.
 
 When a command succeeds within `success_window_minutes` (default 5) after a pending error
 in the same directory — and the successful command runs the *same program* as the one that
-failed (`python3` counts as `python`) — err prints a single gray line: "looks like you just
-fixed <signature>? `err fix` to record the solution" — at most once per error per day.
-Unrelated successes (`ls`, `vim`, …) never trigger it.
+failed (`python3` counts as `python`) — err prints two short gray lines:
+
+```
+- err - looks fixed: <signature>
+err fix to record the solution
+```
+
+at most once per error per day. Unrelated successes (`ls`, `vim`, …) never trigger it.
 
 ## How it works
 
@@ -117,7 +124,8 @@ Unrelated successes (`ls`, `vim`, …) never trigger it.
   pure Go, no CGO) at `~/.local/share/dejavu/dejavu.db` (XDG-aware), with an FTS5
   full-text index over signatures and solutions. Config lives at
   `~/.config/dejavu/config.yaml`.
-- **Hints** — on a hit, at most two gray (ANSI 90) lines. Restraint is a feature;
+- **Hints** — on a hit, at most two gray (ANSI 90) lines with command names
+  (`err fix` / `err show`) in cyan. Restraint is a feature;
   set `hint.enabled: false` in the config to turn them off.
 
 ## Current scope

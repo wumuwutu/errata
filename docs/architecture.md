@@ -53,7 +53,7 @@ internal/fingerprint/
 internal/match/match.go      Matcher 接口（Exact/Similar）+ SimHash 实现
 internal/store/store.go      SQLite 存取（WAL + busy_timeout）
 internal/store/migrate.go    schema_version 表 + 有序迁移（只增不改）
-internal/hint/hint.go        命中提示 / 解决提示（灰色 ≤2 行，§7.6）
+internal/hint/hint.go        命中提示 / 解决提示（灰色 ≤2 行 + 命令名青色，§7.6）
 internal/config/config.go    viper 配置 + XDG 路径 + ignore 黑名单
 internal/list/list.go        err list 的 bubbletea model（Update 为纯函数）
 internal/eval/eval.go        语料加载 + 两两判定 precision/recall/F1
@@ -99,7 +99,8 @@ recordFailure(commandLine, dir, stderr, cfg, hintOut):
   3. store.Open()（migrate 自动升级 schema）
   4. cli/record.go:71 findHit(match.SimHash, fp) → 精确命中 or 相似降级
   5. store/store.go:147 UpsertError() → 新错误建记录+pending；旧错误 count++
-  6. hint/hint.go Print() → ≤2 行灰色提示（见过 N 次/解法/相似错误）
+  6. hint/hint.go Print() → ≤2 行灰色提示（见过 N 次/解法/相似错误），
+     命令名（err fix/err show）青色（ANSI 36），ASCII 短横线
 ```
 
 ## SQLite schema（迁移 1 + 2，见 internal/store/migrate.go）
