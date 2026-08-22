@@ -44,12 +44,19 @@ func Print(w io.Writer, rec *store.Error, similar bool) {
 		b.WriteString(termx.Faint(prefix + " seen " + when + " in " + where +
 			" (occurrence #" + strconv.Itoa(rec.Count) + ")"))
 		if rec.Solution != "" {
-			b.WriteString("\n" + termx.Faint("fix: ") + termx.Bright(truncate(rec.Solution)) +
-				termx.Faint(" (") + termx.Cyan("err show "+id) + termx.Faint(" for details)"))
+			b.WriteString("\n")
+			b.WriteString(termx.Faint("fix: "))
+			b.WriteString(termx.Bright(truncate(rec.Solution)))
+			b.WriteString(termx.Faint(" ("))
+			b.WriteString(termx.Cyan("err show " + id))
+			b.WriteString(termx.Faint(" for details)"))
 		} else {
-			b.WriteString("\n" + termx.Faint("seen but no solution recorded (") +
-				termx.Cyan("err fix") + termx.Faint(" to add, ") +
-				termx.Cyan("err show "+id) + termx.Faint(")"))
+			b.WriteString("\n")
+			b.WriteString(termx.Faint("seen but no solution recorded ("))
+			b.WriteString(termx.Cyan("err fix"))
+			b.WriteString(termx.Faint(" to add, "))
+			b.WriteString(termx.Cyan("err show " + id))
+			b.WriteString(termx.Faint(")"))
 		}
 	}
 	fmt.Fprintln(w, b.String())
@@ -64,8 +71,7 @@ func PrintSolved(w io.Writer, e *store.Error) {
 		return
 	}
 	fmt.Fprintln(w, termx.Faint(prefix+" ")+termx.Green("looks fixed")+termx.Faint(": ")+
-		termx.Bright(truncate(e.Signature))+
-		"\n"+termx.Cyan("err fix")+termx.Faint(" to record the solution"))
+		termx.Bright(truncate(e.Signature))+"\n"+termx.Cyan("err fix")+termx.Faint(" to record the solution"))
 }
 
 // truncate collapses whitespace and cuts to maxSolutionCols display

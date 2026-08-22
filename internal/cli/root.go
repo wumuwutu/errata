@@ -13,7 +13,7 @@ import (
 )
 
 // Version is the dejavu release version.
-const Version = "0.1.7"
+const Version = "0.1.8"
 
 var rootCmd = &cobra.Command{
 	Use:     "err",

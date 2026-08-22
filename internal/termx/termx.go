@@ -17,20 +17,23 @@ import (
 // green marks the "looks fixed" keyword; bright marks key payloads like
 // the error signature or the recorded solution.
 //
-// 想自己改颜色？只改下面这四个值即可，所有提示颜色都从这里取。
+// 想自己改颜色？只改下面这几个值即可，所有提示颜色都从这里取。
 // 常用 ANSI 色码速查（\x1b[<code>m）：
 //
 //	30 黑   31 红   32 绿   33 黄   34 蓝   35 品红  36 青   37 白
 //	90 亮黑(灰)  91 亮红  92 亮绿  93 亮黄  94 亮蓝  95 亮品红  96 亮青  97 亮白
 //	0 重置（reset，勿动）
 //
-// 改完跑 go test ./internal/termx/ 确认没破坏 NO_COLOR 不变量。
+// 红色（red/brightRed）只用于破坏性命令的确认提示（err delete/clear），
+// 日常提示绝不用红。改完跑 go test ./internal/termx/ 确认没破坏 NO_COLOR 不变量。
 const (
-	faint  = "\x1b[90m"
-	cyan   = "\x1b[36m"
-	green  = "\x1b[92m"
-	bright = "\x1b[97m"
-	reset  = "\x1b[0m"
+	faint     = "\x1b[90m"
+	cyan      = "\x1b[36m"
+	green     = "\x1b[92m"
+	bright    = "\x1b[97m"
+	red       = "\x1b[31m"
+	brightRed = "\x1b[91m"
+	reset     = "\x1b[0m"
 )
 
 // NoColor disables all palette output. Initialized from the NO_COLOR
@@ -56,6 +59,13 @@ func Green(s string) string { return paint(green, s) }
 
 // Bright paints key payloads (error signature, solution) in bright white.
 func Bright(s string) string { return paint(bright, s) }
+
+// Red paints in plain red (reserved for warnings that should not shout).
+func Red(s string) string { return paint(red, s) }
+
+// BrightRed paints in bright red: ONLY for the confirmation prompt of
+// destructive commands (err delete / err clear) — never for notices.
+func BrightRed(s string) string { return paint(brightRed, s) }
 
 // PlainUnlessTTY forces plain (uncolored) output when w is not a terminal
 // and returns a restore func. Interactive CLI commands defer it so piped

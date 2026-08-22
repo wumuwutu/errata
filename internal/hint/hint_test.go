@@ -50,6 +50,15 @@ func withNoColor(t *testing.T) {
 	t.Cleanup(func() { termx.NoColor = old })
 }
 
+// withColor forces colors on regardless of the ambient NO_COLOR env, so
+// palette assertions are deterministic on any machine.
+func withColor(t *testing.T) {
+	t.Helper()
+	old := termx.NoColor
+	termx.NoColor = false
+	t.Cleanup(func() { termx.NoColor = old })
+}
+
 func TestPrintExactHitWithSolution(t *testing.T) {
 	r := rec()
 	r.Solution = "reinstall with conda deactivated"
@@ -73,9 +82,7 @@ func TestPrintExactHitWithSolution(t *testing.T) {
 }
 
 func TestPrintColors(t *testing.T) {
-	if termx.NoColor {
-		t.Skip("NO_COLOR is set in the environment")
-	}
+	withColor(t)
 	r := rec()
 	r.Solution = "reinstall with conda deactivated"
 	var b bytes.Buffer
@@ -139,9 +146,7 @@ func TestPrintSolvedTwoLines(t *testing.T) {
 }
 
 func TestPrintSolvedColors(t *testing.T) {
-	if termx.NoColor {
-		t.Skip("NO_COLOR is set in the environment")
-	}
+	withColor(t)
 	r := rec()
 	r.Signature = "TypeError: boom"
 	var b bytes.Buffer

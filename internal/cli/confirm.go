@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"golang.org/x/term"
+
+	"github.com/wumuwutu/dejavu/internal/termx"
 )
 
 // confirmDestructive gates a destructive command behind a typed answer on
@@ -22,11 +24,12 @@ func confirmDestructive(in io.Reader, out io.Writer, prompt string, requireYes b
 // confirmAnswer implements the confirmation semantics: requireYes accepts
 // only the full word "yes" (clear); otherwise "y"/"yes" in any case
 // confirm (delete). Anything else — including an empty line — means no.
+// The prompt itself is bright red: destructive actions must stand out.
 func confirmAnswer(in io.Reader, out io.Writer, prompt string, requireYes, tty bool) (bool, error) {
 	if !tty {
 		return false, errors.New("refusing to proceed without confirmation (non-interactive; use --yes)")
 	}
-	fmt.Fprint(out, prompt)
+	fmt.Fprint(out, termx.BrightRed(prompt))
 	line, err := bufio.NewReader(in).ReadString('\n')
 	if err != nil && line == "" {
 		return false, err

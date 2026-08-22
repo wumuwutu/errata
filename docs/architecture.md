@@ -43,7 +43,8 @@ internal/
 │   ├── hook_event.go          err hook-event（隐藏命令，hook 的回调入口，
 │   │                          --seq 对应 hook 写入缓冲的 OSC 哨兵）
 │   ├── root.go                根命令、版本号、启动时懒归档过期 pending
-│   ├── confirm.go             破坏性命令的确认语义（delete 认 y，clear 只认完整 yes）
+│   ├── confirm.go             破坏性命令的确认语义（delete 认 y，clear 只认完整 yes；
+│   │                          确认提示亮红 ANSI 91）
 │   └── run.go / fix.go / show.go / pending.go / list.go / stats.go /
 │       history.go / ignore.go / init.go / doctor.go / delete.go / clear.go /
 │       uninstall.go           同名用户命令；pending/list/history 默认只显示

@@ -3,6 +3,8 @@ package cli
 import (
 	"strings"
 	"testing"
+
+	"github.com/wumuwutu/dejavu/internal/termx"
 )
 
 func TestConfirmAnswer(t *testing.T) {
@@ -38,5 +40,30 @@ func TestConfirmAnswerNonTTYRefuses(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "--yes") {
 		t.Fatalf("refusal should point at --yes: %v", err)
+	}
+}
+
+// TestConfirmPromptIsRed: on a terminal the destructive-action prompt is
+// bright red (ANSI 91); NO_COLOR keeps it plain.
+func TestConfirmPromptIsRed(t *testing.T) {
+	old := termx.NoColor
+	defer func() { termx.NoColor = old }()
+
+	termx.NoColor = false
+	var out strings.Builder
+	if _, err := confirmAnswer(strings.NewReader("n\n"), &out, "really? ", false, true); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "\x1b[91mreally? ") {
+		t.Fatalf("prompt not bright red: %q", out.String())
+	}
+
+	termx.NoColor = true
+	out.Reset()
+	if _, err := confirmAnswer(strings.NewReader("n\n"), &out, "really? ", false, true); err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != "really? " {
+		t.Fatalf("NO_COLOR prompt must be plain: %q", out.String())
 	}
 }

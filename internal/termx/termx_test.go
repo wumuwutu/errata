@@ -74,3 +74,18 @@ func TestShortenHome(t *testing.T) {
 		t.Fatalf("outside home: %q", got)
 	}
 }
+
+func TestPaletteReds(t *testing.T) {
+	defer func() { NoColor = false }()
+	NoColor = false
+	if got := Red("x"); !strings.HasPrefix(got, red) {
+		t.Fatalf("Red: %q", got)
+	}
+	if got := BrightRed("x"); !strings.HasPrefix(got, brightRed) || !strings.HasSuffix(got, reset) {
+		t.Fatalf("BrightRed: %q", got)
+	}
+	NoColor = true
+	if BrightRed("clear ALL?") != "clear ALL?" {
+		t.Fatal("BrightRed must pass text through under NoColor")
+	}
+}

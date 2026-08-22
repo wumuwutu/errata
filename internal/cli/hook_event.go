@@ -108,7 +108,7 @@ func readStderrDelta(file string, offset, seq int64) []byte {
 	if seq <= 0 {
 		return slice
 	}
-	mark := []byte(fmt.Sprintf("%s%d\a", sentinelPrefix, seq))
+	mark := fmt.Appendf(nil, "%s%d\a", sentinelPrefix, seq)
 	i := bytes.LastIndex(slice, mark)
 	if i < 0 {
 		return nil

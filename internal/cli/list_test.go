@@ -10,6 +10,7 @@ import (
 
 	"github.com/wumuwutu/dejavu/internal/config"
 	"github.com/wumuwutu/dejavu/internal/store"
+	"github.com/wumuwutu/dejavu/internal/termx"
 )
 
 // setupTestStore points the config/data paths at a temp dir and seeds one
@@ -130,6 +131,12 @@ func seedMany(t *testing.T, st *store.Store, n int) {
 }
 
 func TestPrintErrorTableLimit(t *testing.T) {
+	// printErrorTable is only reached on the non-TTY path, where RunE has
+	// already forced plain output; simulate that here.
+	old := termx.NoColor
+	termx.NoColor = true
+	defer func() { termx.NoColor = old }()
+
 	st := setupTestStore(t)
 	seedMany(t, st, 25) // 26 total
 	items, err := st.ListAll()
