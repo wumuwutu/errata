@@ -9,6 +9,7 @@ import (
 
 	"github.com/wumuwutu/dejavu/internal/config"
 	"github.com/wumuwutu/dejavu/internal/store"
+	"github.com/wumuwutu/dejavu/internal/termx"
 )
 
 var pendingCmd = &cobra.Command{
@@ -40,12 +41,12 @@ var pendingCmd = &cobra.Command{
 				fmt.Fprintf(w, "%d\t%s\t%d\t%s\t%s\t%s\n",
 					it.ErrorID, it.Language, it.Count,
 					it.FirstSeen.Format("2006-01-02"), it.LastSeen.Format("2006-01-02"),
-					it.Signature)
+					termx.Truncate(it.Signature, 72))
 			}
 			if err := w.Flush(); err != nil {
 				return err
 			}
-			fmt.Println("\nrecord a solution with: err fix <id>")
+			fmt.Println("\n" + termx.Faint("--err-- record a solution with: ") + termx.Cyan("err fix") + termx.Faint(" <id>"))
 		}
 
 		resolved, total, err := st.RecordRate()

@@ -14,6 +14,7 @@ import (
 	"github.com/wumuwutu/dejavu/internal/config"
 	"github.com/wumuwutu/dejavu/internal/list"
 	"github.com/wumuwutu/dejavu/internal/store"
+	"github.com/wumuwutu/dejavu/internal/termx"
 )
 
 var listCmd = &cobra.Command{
@@ -66,7 +67,7 @@ func printErrorTable(w io.Writer, items []store.Error) {
 	for _, e := range items {
 		fmt.Fprintf(tw, "%d\t%s\t%s\t%d\t%s\t%s\n",
 			e.ID, e.Language, orDash(e.Pending), e.Count,
-			e.LastSeen.Format("2006-01-02"), e.Signature)
+			e.LastSeen.Format("2006-01-02"), termx.Truncate(e.Signature, 72))
 	}
 	tw.Flush() //nolint:errcheck
 }

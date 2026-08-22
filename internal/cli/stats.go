@@ -10,6 +10,7 @@ import (
 
 	"github.com/wumuwutu/dejavu/internal/config"
 	"github.com/wumuwutu/dejavu/internal/store"
+	"github.com/wumuwutu/dejavu/internal/termx"
 )
 
 var statsCmd = &cobra.Command{
@@ -55,7 +56,7 @@ func printStats(w io.Writer, s *store.Stats) {
 
 	fmt.Fprintln(w, "\nmost repeated:")
 	for _, kv := range s.TopRepeated {
-		fmt.Fprintf(w, "  %4dx  %s\n", kv.N, kv.Label)
+		fmt.Fprintf(w, "  %4dx  %s\n", kv.N, termx.Truncate(kv.Label, 60))
 	}
 
 	fmt.Fprintln(w, "\nnew errors per week (oldest → latest):")
@@ -70,6 +71,7 @@ func writeKVs(w io.Writer, kvs []store.KV) {
 		return
 	}
 	for _, kv := range kvs {
-		fmt.Fprintf(w, "  %-30s %d\n", kv.Label, kv.N)
+		// Pad by display cells, not bytes, so CJK labels stay aligned.
+		fmt.Fprintf(w, "  %s %d\n", termx.PadRight(termx.Truncate(kv.Label, 30), 32), kv.N)
 	}
 }

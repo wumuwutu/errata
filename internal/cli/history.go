@@ -10,6 +10,7 @@ import (
 
 	"github.com/wumuwutu/dejavu/internal/config"
 	"github.com/wumuwutu/dejavu/internal/store"
+	"github.com/wumuwutu/dejavu/internal/termx"
 )
 
 var historyProject string
@@ -54,9 +55,10 @@ var historyCmd = &cobra.Command{
 		fmt.Fprintf(out, "%d errors under %s (oldest first)\n\n", len(mine), dir)
 		for _, e := range mine {
 			fmt.Fprintf(out, "#%-4d %-10s %-7s %-4d %s\n", e.ID,
-				e.FirstSeen.Format("2006-01-02"), e.Language, e.Count, e.Signature)
+				e.FirstSeen.Format("2006-01-02"), e.Language, e.Count,
+				termx.Truncate(e.Signature, 72))
 			if e.Solution != "" {
-				fmt.Fprintf(out, "      fix: %s\n", e.Solution)
+				fmt.Fprintf(out, "      fix: %s\n", termx.Truncate(e.Solution, 80))
 			}
 		}
 		return nil

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/wumuwutu/dejavu/internal/config"
 	"github.com/wumuwutu/dejavu/internal/store"
@@ -83,5 +84,30 @@ func TestFilterByProject(t *testing.T) {
 		if got[i].ID != wantID {
 			t.Fatalf("order[%d] = %d, want %d", i, got[i].ID, wantID)
 		}
+	}
+}
+
+// TestPrintErrorTableTruncatesCJK: long CJK signatures are cut by display
+// width at a rune boundary, never mid-character.
+func TestPrintErrorTableTruncatesCJK(t *testing.T) {
+	long := store.Error{
+		ID:        7,
+		Language:  "python",
+		Pending:   "pending",
+		Count:     2,
+		LastSeen:  time.Now(),
+		Signature: "类型错误：" + strings.Repeat("类型不同需要显式转换，", 20),
+	}
+	var buf bytes.Buffer
+	printErrorTable(&buf, []store.Error{long})
+	out := buf.String()
+	if !utf8.ValidString(out) {
+		t.Fatalf("table output is not valid UTF-8:\n%s", out)
+	}
+	if !strings.Contains(out, "…") {
+		t.Fatalf("long CJK signature must be ellipsized:\n%s", out)
+	}
+	if strings.Contains(out, strings.Repeat("类型不同需要显式转换，", 20)) {
+		t.Fatalf("signature not truncated:\n%s", out)
 	}
 }
