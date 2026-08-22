@@ -16,11 +16,17 @@ import (
 // (restraint red line, dev-guide §9).
 const remindInterval = 24 * time.Hour
 
-// solvedHint implements DETECTED_SUCCESS (dev-guide §7.2), corrected by
-// real-world feedback: any success used to nudge, which cried wolf on
-// unrelated commands. Now the successful command's program must match the
-// pending error's program (python3 == python) — a fix almost always
-// re-runs the same tool. One store open, one query; every failure silent.
+// solvedHint implements DETECTED_SUCCESS (dev-guide §7.2), tightened twice
+// by real-world feedback. v0.1.4: not every success nudges, only a success
+// running the same program (python3 == python). v0.1.8: same program is not
+// enough either — with several same-program pendings in one directory, any
+// of them succeeding nudged the wrong error. Now the successful command
+// must also share a "target" with the failed one: a non-flag argument (the
+// script, the subcommand, the package) that survives flag stripping, e.g.
+// `python demo7.py` failing is only matched by a succeeding command that
+// also mentions demo7.py. When neither side carries a target argument, the
+// program alone decides (e.g. `pip` vs `pip`). Precision first: a missed
+// nudge beats a wrong one. One store open, one query; every failure silent.
 func solvedHint(dir, command string, out io.Writer) {
 	if dir == "" {
 		return
@@ -52,15 +58,66 @@ func solvedHint(dir, command string, out io.Writer) {
 	if err != nil {
 		return
 	}
-	prog := programOf(command)
 	for i := range candidates {
-		if programOf(candidates[i].Command) != prog {
-			continue // unrelated program: no nudge
+		if !sameTarget(candidates[i].Command, command) {
+			continue // unrelated command: no nudge
 		}
 		st.MarkReminded(candidates[i].ID, now) //nolint:errcheck
 		hint.PrintSolved(out, &candidates[i])
 		return
 	}
+}
+
+// sameTarget reports whether a successful command plausibly re-ran the
+// failed one: same program, plus at least one shared target argument.
+// With no target arguments on either side, same program is enough.
+func sameTarget(failedCmd, okCmd string) bool {
+	if programOf(failedCmd) != programOf(okCmd) {
+		return false
+	}
+	fa, oa := targetArgs(failedCmd), targetArgs(okCmd)
+	if len(fa) == 0 && len(oa) == 0 {
+		return true
+	}
+	for _, f := range fa {
+		for _, o := range oa {
+			if f == o {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// targetArgs extracts a command line's non-flag arguments: tokens after
+// the program name (itself after any leading VAR=value prefixes) that do
+// not start with '-'. Quotes and directories are stripped for comparison,
+// so `python "demo7.py"`, `python ./demo7.py` and `python demo7.py` share
+// the target demo7.py. Flags never count as targets — but a flag's value
+// (e.g. pytest in `python -m pytest`) does: the arity of arbitrary flags
+// is unknowable, and treating values as targets errs toward the safer
+// side here (they tend to name the thing being run).
+func targetArgs(commandLine string) []string {
+	fields := strings.Fields(commandLine)
+	i := 0
+	for i < len(fields) && isAssignment(fields[i]) {
+		i++
+	}
+	if i < len(fields) {
+		i++ // the program name itself
+	}
+	var out []string
+	for ; i < len(fields); i++ {
+		f := fields[i]
+		if strings.HasPrefix(f, "-") {
+			continue
+		}
+		f = filepath.Base(strings.Trim(f, `"'`))
+		if f != "" && f != "." && f != string(os.PathSeparator) {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // programOf normalizes a command line's argv[0] for comparison: skips

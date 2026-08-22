@@ -97,7 +97,11 @@ automatically — never deleted, just out of the pending queue.
 
 When a command succeeds within `success_window_minutes` (default 5) after a pending error
 in the same directory — and the successful command runs the *same program* as the one that
-failed (`python3` counts as `python`) — err prints two short gray lines:
+failed (`python3` counts as `python`) and shares a *target argument* (the script or
+subcommand, with flags stripped: `FIXED=1 python3 -u demo7.py` matches a failed
+`python demo7.py`, but `python3 other.py` and `python3 -c 'print(1)'` do not;
+targetless commands like `pip` fall back to program-only matching) — err prints two
+short gray lines:
 
 ```
 --err-- looks fixed: <signature>

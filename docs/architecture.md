@@ -39,7 +39,8 @@ internal/
 │
 ├── cli/                       命令层：cobra，基本每个文件一个命令
 │   ├── record.go              ★ 失败主管线 recordFailure（run/hook 两条捕获路共用）
-│   ├── solved.go              成功检测 solvedHint（同程序成功才提示"looks fixed"）
+│   ├── solved.go              成功检测 solvedHint（同程序且同目标参数成功
+│   │                          才提示"looks fixed"；precision 优先）
 │   ├── hook_event.go          err hook-event（隐藏命令，hook 的回调入口，
 │   │                          --seq 对应 hook 写入缓冲的 OSC 哨兵）
 │   ├── root.go                根命令、版本号、启动时懒归档过期 pending
@@ -81,10 +82,12 @@ B. shell hook（用户在 hooked shell 里跑任意命令）
      precmd/PROMPT_COMMAND: 读 $?，并无条件消费/清空 __dejavu_cmd
        （空行或 Ctrl-C 复用上一条的 $?，陈旧命令文本会造成错位归属）
        成功 → err hook-event --exit-code 0 --cwd $PWD --command C
-              → cli/hook_event.go → cli/solved.go:21 solvedHint()
-              （同目录 5 分钟内有 pending，且成功命令与报错命令是同一程序
-               （python3==python）→ 灰色两行提醒，24h 内不重复；
-               无关命令（如 ls）成功不提醒——用户实测纠偏，见 827be5c）
+              → cli/hook_event.go → cli/solved.go solvedHint()
+              （同目录 5 分钟内有 pending，且成功命令与报错命令同程序
+               （python3==python）且共享"目标参数"（剥掉程序名和 flag 后的
+               非 flag token，如脚本名 demo7.py；两边都没有目标参数时退化
+               为仅同程序）→ 灰色两行提醒，24h 内不重复；
+               无关命令成功不提醒——两次用户实测纠偏，见 827be5c 与 v0.1.8）
        失败且 stderr 缓冲增长 → err hook-event --exit-code N --offset O \
               --seq S --stderr-file F --cwd D --command C
               → cli/hook_event.go → 读增量：从 offset 起读，取最后一个

@@ -21,7 +21,9 @@ check() {
 }
 
 cat > "$TMP/fail.py" <<'PY'
-raise TypeError("unsupported operand type(s) for +: 'int' and 'str'")
+import os
+if not os.environ.get("FIXED"):
+    raise TypeError("unsupported operand type(s) for +: 'int' and 'str'")
 PY
 
 # Isolated rcfile: just the hook (with the err binary on PATH).
@@ -38,6 +40,7 @@ printf '%s\n' \
   "python3 \"$TMP/fail.py\"" \
   'true' \
   "python3 -c 'print(1)'" \
+  "FIXED=1 python3 \"$TMP/fail.py\"" \
   "python3 \"$TMP/fail.py\"" \
   'echo SESSION-DONE' \
   | bash --rcfile "$TMP/rc" -i >"$TMP/out.txt" 2>&1
@@ -59,8 +62,10 @@ fi
 check "hit hint shown" grep -q 'occurrence #2' "$TMP/out.txt"
 # 5. Session actually completed (hook did not hang the shell).
 check "session completed" grep -q 'SESSION-DONE' "$TMP/out.txt"
-# 6. Success detection: same-program success nudges once; the unrelated
-#    'true' and the echo before SESSION-DONE must stay quiet.
+# 6. Success detection: a success nudges only when it shares the program
+#    AND a target argument (the script) with the pending error: 'true' and
+#    `python3 -c 'print(1)'` (same program, other target) stay quiet, while
+#    the FIXED=1 re-run of the same script nudges — exactly once.
 check "success hint shown" grep -q 'looks fixed' "$TMP/out.txt"
 hint_count=$(grep -c 'looks fixed' "$TMP/out.txt")
 check "success hint not repeated" test "$hint_count" -eq 1
