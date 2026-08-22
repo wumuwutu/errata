@@ -68,6 +68,24 @@ check "success hint not repeated" test "$hint_count" -eq 1
 # 6b. Command attribution: the recorded command is the one that failed.
 check "command attributed to failing python" grep -q "command:.*python3 .*fail.py" "$TMP/show1.txt"
 
+# 7. err's own output must never pollute a later capture: err pending
+#    prints to stderr (into the session buffer); the next failure's record
+#    must carry only its own stderr and command. (The preexec sentinel
+#    lands behind those bytes in the tee pipe, so they are cut away.)
+cat > "$TMP/fail3.py" <<'PY'
+raise ValueError("zz-pollution-probe")
+PY
+printf '%s\n' \
+  "err pending" \
+  "python3 \"$TMP/fail3.py\"" \
+  'echo POLLUTE-DONE' \
+  | ZDOTDIR="$TMP/zdot" zsh -i >"$TMP/out4.txt" 2>&1
+newid=$("$ERR" pending 2>/dev/null | grep 'zz-pollution-probe' | awk '{print $1}')
+check "pollution probe recorded" test -n "$newid"
+"$ERR" show "$newid" >"$TMP/shown.txt" 2>&1
+check "signature unpolluted by err output" grep -qE '^signature: +ValueError: zz-pollution-probe$' "$TMP/shown.txt"
+check "command kept after err pending ran" grep -q "command:.*python3 .*fail3.py" "$TMP/shown.txt"
+
 if [ "$fails" -gt 0 ]; then
   echo "---"
   echo "$fails check(s) FAILED; session output:"

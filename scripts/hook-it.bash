@@ -91,7 +91,25 @@ check "unrelated success stays quiet" bash -c "! grep -q 'looks fixed' '$TMP/out
 #    attribution even when errors interleave with other commands).
 "$ERR" show 2 >"$TMP/show2.txt" 2>&1
 check "earlier error kept its command" grep -q "command:.*python3 .*fail2.py" "$TMP/show2.txt"
-# 10. fish (and other shells) are rejected gracefully.
+# 10. err's own output must never pollute a later capture: err pending
+#     prints to stderr (into the session buffer); the next failure's record
+#     must carry only its own stderr and command. (The preexec sentinel
+#     lands behind those bytes in the tee pipe, so they are cut away.)
+cat > "$TMP/fail3.py" <<'PY'
+raise ValueError("zz-pollution-probe")
+PY
+printf '%s\n' \
+  "python3 \"$TMP/fail2.py\"" \
+  "err pending" \
+  "python3 \"$TMP/fail3.py\"" \
+  'echo POLLUTE-DONE' \
+  | bash --rcfile "$TMP/rc" -i >"$TMP/out4.txt" 2>&1
+newid=$("$ERR" pending 2>/dev/null | grep 'zz-pollution-probe' | awk '{print $1}')
+check "pollution probe recorded" test -n "$newid"
+"$ERR" show "$newid" >"$TMP/shown.txt" 2>&1
+check "signature unpolluted by err output" grep -qE '^signature: +ValueError: zz-pollution-probe$' "$TMP/shown.txt"
+check "command kept after err pending ran" grep -q "command:.*python3 .*fail3.py" "$TMP/shown.txt"
+# 11. fish (and other shells) are rejected gracefully.
 fish_out=$("$ERR" init fish 2>"$TMP/fish.err")
 [ -z "$fish_out" ] && grep -q 'no shell hook' "$TMP/fish.err"
 check "fish rejected gracefully" test $? -eq 0
