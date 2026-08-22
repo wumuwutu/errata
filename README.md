@@ -45,7 +45,8 @@ can never attribute one command's error to another.
 err run python train.py
 
 # When a command fails, the error is fingerprinted and stored.
-# Fix it, then record the fix:
+# Fix it, then record the fix (no argument = the error you just hit;
+# a one-line summary is shown, then you type the solution):
 err fix -m "LD_LIBRARY_PATH was polluted by conda; conda deactivate and reinstall"
 
 # The next time the same error recurs — even from a different path, with

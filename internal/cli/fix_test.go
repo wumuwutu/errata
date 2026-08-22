@@ -9,26 +9,46 @@ import (
 	"github.com/wumuwutu/dejavu/internal/store"
 )
 
-func TestParseChoice(t *testing.T) {
-	cases := []struct {
-		in      string
-		n       int
-		wantIdx int
-		wantOK  bool
-	}{
-		{"\n", 3, 0, true},   // empty = first
-		{"2\n", 3, 1, true},  // valid pick
-		{"3", 3, 2, true},    // no newline
-		{"0\n", 3, 0, false}, // out of range low
-		{"4\n", 3, 0, false}, // out of range high
-		{"x\n", 3, 0, false}, // not a number
+func TestResolveFixTargetLatestPending(t *testing.T) {
+	st := setupTestStore(t) // seeds one pending python error in /tmp/proj
+	_, _, err := st.UpsertError(&store.Error{
+		Fingerprint: "00000000000000f2",
+		Signature:   "ModuleNotFoundError: No module named 'torch'",
+		Language:    "python",
+		Command:     "python train.py",
+		ProjectDir:  "/tmp/proj",
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, c := range cases {
-		idx, ok := parseChoice(c.in, c.n)
-		if idx != c.wantIdx || ok != c.wantOK {
-			t.Errorf("parseChoice(%q, %d) = (%d, %v), want (%d, %v)",
-				c.in, c.n, idx, ok, c.wantIdx, c.wantOK)
-		}
+
+	// No argument: the most recent pending error wins, no picking.
+	target, more, err := resolveFixTarget(st, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target == nil || target.Signature != "ModuleNotFoundError: No module named 'torch'" {
+		t.Fatalf("target = %+v, want the latest pending error", target)
+	}
+	if more != 1 {
+		t.Fatalf("more = %d, want 1", more)
+	}
+
+	// Explicit id still wins.
+	older, more, err := resolveFixTarget(st, []string{"1"})
+	if err != nil || older == nil || older.ID != 1 || more != 0 {
+		t.Fatalf("by id: target=%+v more=%d err=%v", older, more, err)
+	}
+}
+
+func TestResolveFixTargetNonePending(t *testing.T) {
+	st := setupTestStore(t)
+	if err := st.AddFix(1, "done"); err != nil { // resolve the only pending
+		t.Fatal(err)
+	}
+	target, more, err := resolveFixTarget(st, nil)
+	if err != nil || target != nil || more != 0 {
+		t.Fatalf("no pending: target=%+v more=%d err=%v", target, more, err)
 	}
 }
 
@@ -43,10 +63,16 @@ func TestPrintFixTarget(t *testing.T) {
 	var b bytes.Buffer
 	printFixTarget(&b, e)
 	out := b.String()
-	for _, want := range []string{"#3", "TypeError: boom", "5 times", "2026-08-21", "/home/x/api"} {
+	if strings.Count(out, "\n") != 1 {
+		t.Fatalf("target summary must be one line:\n%s", out)
+	}
+	for _, want := range []string{"#3", "TypeError: boom", "2026-08-21", "/home/x/api"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("target summary missing %q:\n%s", want, out)
 		}
+	}
+	if strings.Contains(out, "──") || strings.Contains(out, "—") {
+		t.Errorf("target summary must use ASCII dashes only: %q", out)
 	}
 }
 

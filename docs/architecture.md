@@ -18,6 +18,8 @@ internal/cli/                cobra 命令层（每个文件一个命令）
   record.go                  recordFailure：失败命令的"指纹→匹配→存储→提示"
                              主流程（run 和 hook 两条捕获路径共用）
   solved.go                  solvedHint：成功命令的"好像解决了？"提示
+  fix.go                     err fix：无参时直接取最近一条 pending（一行摘要
+                             + 立即输入 solution），不再罗列候选列表
   fix.go / show.go / pending.go / list.go / stats.go / history.go /
   ignore.go / init.go / doctor.go / uninstall.go
                              同名用户命令；*_test.go 为对应测试

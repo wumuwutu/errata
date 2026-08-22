@@ -20,10 +20,11 @@ var fixMessage string
 
 var fixCmd = &cobra.Command{
 	Use:   "fix [id]",
-	Short: "Record the solution for an error (default: pick from pending)",
+	Short: "Record the solution for an error (default: the latest pending one)",
 	Long: "fix attaches your solution to an error and marks it resolved.\n" +
-		"With no argument it shows the pending errors and lets you pick one.\n" +
-		"Pass the solution inline with -m, pipe it on stdin, or type it at the prompt.\n" +
+		"With no argument it targets the most recent pending error — the one you\n" +
+		"probably just fixed. Pass the solution inline with -m, pipe it on stdin,\n" +
+		"or type it at the prompt.\n" +
 		"From then on, the solution pops up automatically when the error recurs.",
 	Example: "  err fix\n" +
 		"  err fix 3 -m \"pin torch==2.1 in requirements.txt\"\n" +
@@ -40,12 +41,12 @@ var fixCmd = &cobra.Command{
 		}
 		defer st.Close()
 
-		target, err := resolveFixTarget(st, args, cmd.InOrStdin(), cmd.ErrOrStderr())
+		target, more, err := resolveFixTarget(st, args)
 		if err != nil {
 			return err
 		}
 		if target == nil {
-			fmt.Fprintln(cmd.ErrOrStderr(), "err: no pending errors — nothing to fix")
+			fmt.Fprintln(cmd.ErrOrStderr(), "err: no pending errors - nothing to fix")
 			return nil
 		}
 
@@ -62,6 +63,9 @@ var fixCmd = &cobra.Command{
 			return err
 		}
 		fmt.Fprintf(cmd.ErrOrStderr(), "err: solution recorded for error #%d (%s)\n", target.ID, target.Signature)
+		if more > 0 {
+			fmt.Fprintf(cmd.ErrOrStderr(), "err: %d more pending: err pending to see\n", more)
+		}
 		return nil
 	},
 }
@@ -71,76 +75,46 @@ func init() {
 	rootCmd.AddCommand(fixCmd)
 }
 
-// resolveFixTarget picks the error to fix: the id argument if given, the
-// single pending error, or an interactive numbered choice among several.
-// Returns (nil, nil) when there is nothing pending.
-func resolveFixTarget(st *store.Store, args []string, in io.Reader, out io.Writer) (*store.Error, error) {
+// resolveFixTarget picks the error to fix: the id argument if given,
+// otherwise the most recent pending error — "fix the problem I just had",
+// no candidate list. Returns (nil, 0, nil) when there is nothing pending.
+// more reports how many other pending errors remain.
+func resolveFixTarget(st *store.Store, args []string) (target *store.Error, more int, err error) {
 	if len(args) == 1 {
 		id, err := strconv.ParseInt(args[0], 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("invalid id %q", args[0])
+			return nil, 0, fmt.Errorf("invalid id %q", args[0])
 		}
 		e, err := st.Get(id)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		if e == nil {
-			return nil, fmt.Errorf("error #%d not found", id)
+			return nil, 0, fmt.Errorf("error #%d not found", id)
 		}
-		return e, nil
+		return e, 0, nil
 	}
 
 	items, err := st.ListPending()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	switch len(items) {
-	case 0:
-		return nil, nil
-	case 1:
-		return st.Get(items[0].ErrorID)
+	if len(items) == 0 {
+		return nil, 0, nil
 	}
-
-	// Several pending: offer a numbered choice. Without a terminal there
-	// is no one to ask — point at the explicit form instead.
-	f, isFile := in.(*os.File)
-	if !isFile || !term.IsTerminal(int(f.Fd())) {
-		return nil, fmt.Errorf("%d pending errors — pick one with: err fix <id> (see err pending)", len(items))
+	// ListPending orders by detected_at DESC: items[0] is the latest.
+	e, err := st.Get(items[0].ErrorID)
+	if err != nil {
+		return nil, 0, err
 	}
-	fmt.Fprintln(out, "pending errors:")
-	for i, it := range items {
-		fmt.Fprintf(out, "  %d) [#%d] %s — %s, seen %d times, last %s\n",
-			i+1, it.ErrorID, it.Signature, it.Language, it.Count,
-			it.LastSeen.Format("2006-01-02 15:04"))
-	}
-	fmt.Fprint(out, "fix which? [1]: ")
-	line, _ := bufio.NewReader(in).ReadString('\n')
-	idx, ok := parseChoice(line, len(items))
-	if !ok {
-		return nil, errors.New("aborted")
-	}
-	return st.Get(items[idx].ErrorID)
+	return e, len(items) - 1, nil
 }
 
-// parseChoice parses a "1..n" menu answer; empty input means 1.
-func parseChoice(input string, n int) (idx int, ok bool) {
-	s := strings.TrimSpace(input)
-	if s == "" {
-		return 0, true
-	}
-	v, err := strconv.Atoi(s)
-	if err != nil || v < 1 || v > n {
-		return 0, false
-	}
-	return v - 1, true
-}
-
-// printFixTarget shows the error the solution is about to be attached to.
+// printFixTarget shows, in one line, the error the solution is about to be
+// attached to: signature, directory, last-seen time.
 func printFixTarget(w io.Writer, e *store.Error) {
-	fmt.Fprintf(w, "── fixing error #%d ──\n", e.ID)
-	fmt.Fprintf(w, "  signature: %s\n", e.Signature)
-	fmt.Fprintf(w, "  seen:      %d times (last %s)\n", e.Count, e.LastSeen.Format("2006-01-02 15:04"))
-	fmt.Fprintf(w, "  directory: %s\n", orDash(e.ProjectDir))
+	fmt.Fprintf(w, "err: fixing #%d: %s (%s, last seen %s)\n",
+		e.ID, e.Signature, orDash(e.ProjectDir), e.LastSeen.Format("2006-01-02 15:04"))
 }
 
 // readSolution resolves the solution text: -m flag wins, then piped stdin,
