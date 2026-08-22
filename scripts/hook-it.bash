@@ -66,7 +66,7 @@ hint_count=$(grep -c 'looks fixed' "$TMP/out.txt")
 check "success hint not repeated" test "$hint_count" -eq 1
 # 6b. Hint style: ASCII dashes, looks-fixed split over two lines, the
 #     second line starting at column 0.
-check "hint uses ascii dash" grep -q -- '- err - seen' "$TMP/out.txt"
+check "hint uses new prefix" grep -q -- '--err-- seen' "$TMP/out.txt"
 check "no box-dash hint" bash -c "! grep -q '── err' '$TMP/out.txt'"
 check "looks-fixed is two lines" bash -c "! grep -q 'looks fixed.*err fix' '$TMP/out.txt'"
 check "looks-fixed line 2 present" grep -q 'err fix.*to record the solution' "$TMP/out.txt"

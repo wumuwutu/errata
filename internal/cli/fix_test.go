@@ -59,17 +59,22 @@ func TestPrintFixTarget(t *testing.T) {
 		Count:      5,
 		LastSeen:   time.Date(2026, 8, 21, 10, 4, 0, 0, time.UTC),
 		ProjectDir: "/home/x/api",
+		Command:    "python app.py",
 	}
 	var b bytes.Buffer
 	printFixTarget(&b, e)
 	out := b.String()
-	if strings.Count(out, "\n") != 1 {
-		t.Fatalf("target summary must be one line:\n%s", out)
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("target summary must be two lines:\n%s", out)
 	}
-	for _, want := range []string{"#3", "TypeError: boom", "2026-08-21", "/home/x/api"} {
+	for _, want := range []string{"#3", "TypeError: boom", "2026-08-21", "/home/x/api", "python app.py"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("target summary missing %q:\n%s", want, out)
 		}
+	}
+	if !strings.Contains(lines[1], "cmd: python app.py") {
+		t.Errorf("second line must carry the triggering command: %q", lines[1])
 	}
 	if strings.Contains(out, "──") || strings.Contains(out, "—") {
 		t.Errorf("target summary must use ASCII dashes only: %q", out)

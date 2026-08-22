@@ -18,9 +18,9 @@ internal/cli/                cobra 命令层（每个文件一个命令）
   record.go                  recordFailure：失败命令的"指纹→匹配→存储→提示"
                              主流程（run 和 hook 两条捕获路径共用）
   solved.go                  solvedHint：成功命令的"好像解决了？"提示
-  fix.go                     err fix：无参时直接取最近一条 pending（一行摘要
-                             + 立即输入 solution），不再罗列候选列表
-  fix.go / show.go / pending.go / list.go / stats.go / history.go /
+  fix.go                     err fix：无参时直接取最近一条 pending（两行摘要
+                             含触发命令 + 立即输入 solution）
+  show.go / pending.go / list.go / stats.go / history.go /
   ignore.go / init.go / doctor.go / uninstall.go
                              同名用户命令；*_test.go 为对应测试
 
@@ -53,7 +53,10 @@ internal/fingerprint/
 internal/match/match.go      Matcher 接口（Exact/Similar）+ SimHash 实现
 internal/store/store.go      SQLite 存取（WAL + busy_timeout）
 internal/store/migrate.go    schema_version 表 + 有序迁移（只增不改）
-internal/hint/hint.go        命中提示 / 解决提示（灰色 ≤2 行 + 命令名青色，§7.6）
+internal/hint/hint.go        命中提示 / 解决提示（--err-- 前缀，faint 灰底 +
+                             命令名青色 + 关键词亮绿/亮白，≤2 行，§7.6）
+internal/termx/termx.go      NO_COLOR 感知 ANSI 调色板 + runewidth 显示宽度
+                             截断（CJK/emoji 不断字）+ ~/ 收缩 + TTY 判定
 internal/config/config.go    viper 配置 + XDG 路径 + ignore 黑名单
 internal/list/list.go        err list 的 bubbletea model（Update 为纯函数）
 internal/eval/eval.go        语料加载 + 两两判定 precision/recall/F1

@@ -14,6 +14,7 @@ import (
 
 	"github.com/wumuwutu/dejavu/internal/config"
 	"github.com/wumuwutu/dejavu/internal/store"
+	"github.com/wumuwutu/dejavu/internal/termx"
 )
 
 var fixMessage string
@@ -31,6 +32,7 @@ var fixCmd = &cobra.Command{
 		"  echo \"pip install --force-reinstall torch\" | err fix 3",
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		defer termx.PlainUnlessTTY(cmd.ErrOrStderr())()
 		dbPath, err := config.DBPath()
 		if err != nil {
 			return err
@@ -46,7 +48,7 @@ var fixCmd = &cobra.Command{
 			return err
 		}
 		if target == nil {
-			fmt.Fprintln(cmd.ErrOrStderr(), "err: no pending errors - nothing to fix")
+			fmt.Fprintln(cmd.ErrOrStderr(), termx.Faint("--err-- no pending errors - nothing to fix"))
 			return nil
 		}
 
@@ -62,9 +64,11 @@ var fixCmd = &cobra.Command{
 		if err := st.AddFix(target.ID, solution); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.ErrOrStderr(), "err: solution recorded for error #%d (%s)\n", target.ID, target.Signature)
+		fmt.Fprintln(cmd.ErrOrStderr(), termx.Faint("--err-- solution recorded for error #"+
+			strconv.FormatInt(target.ID, 10)+" (")+termx.Bright(termx.Truncate(target.Signature, 60))+termx.Faint(")"))
 		if more > 0 {
-			fmt.Fprintf(cmd.ErrOrStderr(), "err: %d more pending: err pending to see\n", more)
+			fmt.Fprintln(cmd.ErrOrStderr(), termx.Faint("--err-- "+strconv.Itoa(more)+" more pending: ")+
+				termx.Cyan("err pending")+termx.Faint(" to see"))
 		}
 		return nil
 	},
@@ -110,11 +114,20 @@ func resolveFixTarget(st *store.Store, args []string) (target *store.Error, more
 	return e, len(items) - 1, nil
 }
 
-// printFixTarget shows, in one line, the error the solution is about to be
-// attached to: signature, directory, last-seen time.
+// printFixTarget shows the error the solution is about to be attached to.
 func printFixTarget(w io.Writer, e *store.Error) {
-	fmt.Fprintf(w, "err: fixing #%d: %s (%s, last seen %s)\n",
-		e.ID, e.Signature, orDash(e.ProjectDir), e.LastSeen.Format("2006-01-02 15:04"))
+	printTargetSummary(w, "fixing", e)
+}
+
+// printTargetSummary renders a compact two-line block — "err: <verb> #<id>:
+// <signature>" first, then the scene (directory with ~ shortening,
+// last-seen time, and the command that triggered it).
+func printTargetSummary(w io.Writer, verb string, e *store.Error) {
+	fmt.Fprintln(w, termx.Faint(fmt.Sprintf("err: %s #%d: ", verb, e.ID))+termx.Bright(e.Signature))
+	fmt.Fprintln(w, termx.Faint(fmt.Sprintf("  at %s · last seen %s · cmd: %s",
+		termx.ShortenHome(orDash(e.ProjectDir)),
+		e.LastSeen.Format("2006-01-02 15:04"),
+		termx.Truncate(orDash(e.Command), 60))))
 }
 
 // readSolution resolves the solution text: -m flag wins, then piped stdin,
