@@ -44,7 +44,8 @@ var listCmd = &cobra.Command{
 		out := cmd.OutOrStdout()
 		if f, isFile := out.(*os.File); !isFile || !term.IsTerminal(int(f.Fd())) {
 			// Non-TTY fallback: pipes and scripts get a plain table.
-			printErrorTable(out, items)
+			defer termx.PlainUnlessTTY(out)()
+			printErrorTable(out, items, listAll)
 			return nil
 		}
 
@@ -56,18 +57,26 @@ var listCmd = &cobra.Command{
 	},
 }
 
+var listAll bool
+
 func init() {
+	listCmd.Flags().BoolVar(&listAll, "all", false, "show all errors in the plain table (default: latest 20)")
 	rootCmd.AddCommand(listCmd)
 }
 
 // printErrorTable is the non-TTY rendering of err list.
-func printErrorTable(w io.Writer, items []store.Error) {
+func printErrorTable(w io.Writer, items []store.Error, all bool) {
+	shown := items
+	if !all && len(shown) > defaultListLimit {
+		shown = shown[:defaultListLimit]
+	}
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
 	fmt.Fprintln(tw, "ID\tLANG\tSTATUS\tSEEN\tLAST\tSIGNATURE")
-	for _, e := range items {
+	for _, e := range shown {
 		fmt.Fprintf(tw, "%d\t%s\t%s\t%d\t%s\t%s\n",
 			e.ID, e.Language, orDash(e.Pending), e.Count,
 			e.LastSeen.Format("2006-01-02"), termx.Truncate(e.Signature, 72))
 	}
 	tw.Flush() //nolint:errcheck
+	printMoreLine(w, len(items)-len(shown), "err list --all")
 }

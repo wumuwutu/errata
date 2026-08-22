@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -99,7 +100,7 @@ func TestPrintErrorTableTruncatesCJK(t *testing.T) {
 		Signature: "类型错误：" + strings.Repeat("类型不同需要显式转换，", 20),
 	}
 	var buf bytes.Buffer
-	printErrorTable(&buf, []store.Error{long})
+	printErrorTable(&buf, []store.Error{long}, true)
 	out := buf.String()
 	if !utf8.ValidString(out) {
 		t.Fatalf("table output is not valid UTF-8:\n%s", out)
@@ -109,5 +110,81 @@ func TestPrintErrorTableTruncatesCJK(t *testing.T) {
 	}
 	if strings.Contains(out, strings.Repeat("类型不同需要显式转换，", 20)) {
 		t.Fatalf("signature not truncated:\n%s", out)
+	}
+}
+
+// seedMany inserts n errors with distinct fingerprints.
+func seedMany(t *testing.T, st *store.Store, n int) {
+	t.Helper()
+	for i := 1; i <= n; i++ {
+		_, _, err := st.UpsertError(&store.Error{
+			Fingerprint: fmt.Sprintf("000000000000a%03x", i),
+			Signature:   fmt.Sprintf("TypeError: boom %d", i),
+			Language:    "python",
+			ProjectDir:  "/tmp/proj",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestPrintErrorTableLimit(t *testing.T) {
+	st := setupTestStore(t)
+	seedMany(t, st, 25) // 26 total
+	items, err := st.ListAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	printErrorTable(&buf, items, false)
+	out := buf.String()
+	if got := strings.Count(out, "TypeError: boom"); got != 20 {
+		t.Fatalf("default table shows %d rows, want 20", got)
+	}
+	if !strings.Contains(out, "and 6 more (err list --all)") {
+		t.Fatalf("missing overflow footer:\n%s", out)
+	}
+	if strings.Contains(out, "\x1b[") {
+		t.Fatal("non-TTY output must stay plain")
+	}
+
+	buf.Reset()
+	printErrorTable(&buf, items, true)
+	if got := strings.Count(buf.String(), "TypeError: boom"); got != 25 {
+		t.Fatalf("--all table shows %d probe rows, want 25", got)
+	}
+}
+
+func TestPendingLimit(t *testing.T) {
+	st := setupTestStore(t)
+	seedMany(t, st, 25)
+
+	var buf bytes.Buffer
+	pendingCmd.SetOut(&buf)
+	defer pendingCmd.SetOut(nil)
+
+	pendingAll = false
+	if err := pendingCmd.RunE(pendingCmd, nil); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	// The seeded row is the oldest and falls outside the latest-20 window.
+	if got := strings.Count(out, "TypeError: boom"); got != 20 {
+		t.Fatalf("pending default shows %d probe rows, want 20", got)
+	}
+	if !strings.Contains(out, "and 6 more (err pending --all)") {
+		t.Fatalf("missing overflow footer:\n%s", out)
+	}
+
+	buf.Reset()
+	pendingAll = true
+	defer func() { pendingAll = false }()
+	if err := pendingCmd.RunE(pendingCmd, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(buf.String(), "TypeError: boom"); got != 25 {
+		t.Fatalf("pending --all shows %d probe rows, want 25", got)
 	}
 }

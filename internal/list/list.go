@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/wumuwutu/dejavu/internal/store"
+	"github.com/wumuwutu/dejavu/internal/termx"
 )
 
 var (
@@ -31,9 +32,13 @@ type Model struct {
 	Lang    string // active language filter, "" = all
 	Status  string // active status filter, "" = all
 	Cursor  int    // index into the filtered view
+	Offset  int    // first visible row (scroll window)
 	Detail  bool   // detail view of the selected item
 	Editing bool   // inline solution editor active
 	Notice  string // transient one-line feedback (e.g. "solution saved")
+
+	Width  int // terminal width; 0 = unknown (no row truncation)
+	Height int // terminal height; 0 = unknown (render all rows)
 
 	input textinput.Model
 
@@ -70,6 +75,10 @@ func (m Model) Visible() []store.Error {
 // Update handles keys. It is pure with respect to the outside world: the
 // only effect is calling the injected Save.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if ws, ok := msg.(tea.WindowSizeMsg); ok {
+		m.Width, m.Height = ws.Width, ws.Height
+		return m, nil
+	}
 	if m.Editing {
 		return m.updateEdit(msg)
 	}
@@ -77,6 +86,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateKey(k)
 	}
 	return m, nil
+}
+
+// visibleRows is how many list rows fit on screen: the header, a scroll
+// status line and the editor line (when active) reserve space. Height 0
+// (unknown, e.g. in tests) means "no limit".
+func (m Model) visibleRows() int {
+	if m.Height <= 0 {
+		return len(m.Visible())
+	}
+	n := m.Height - 2
+	if m.Editing {
+		n--
+	}
+	if n < 1 {
+		n = 1
+	}
+	return n
+}
+
+// keepVisible scrolls the window so the cursor stays inside it.
+func (m Model) keepVisible() Model {
+	vr := m.visibleRows()
+	if vr <= 0 {
+		return m
+	}
+	if m.Cursor < m.Offset {
+		m.Offset = m.Cursor
+	}
+	if m.Cursor >= m.Offset+vr {
+		m.Offset = m.Cursor - vr + 1
+	}
+	return m
 }
 
 // updateEdit is the inline-editor state machine: enter saves, esc cancels,
@@ -130,17 +171,21 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.Cursor > 0 {
 			m.Cursor--
 		}
+		m = m.keepVisible()
 	case "down", "j":
 		if m.Cursor < len(vis)-1 {
 			m.Cursor++
 		}
+		m = m.keepVisible()
 	case "l":
 		m.Lang = cycle(langCycle, m.Lang)
 		m.Cursor = 0
+		m.Offset = 0
 		m.Detail = false
 	case "s":
 		m.Status = cycle(statusCycle, m.Status)
 		m.Cursor = 0
+		m.Offset = 0
 		m.Detail = false
 	case "enter":
 		if len(vis) > 0 {
@@ -189,9 +234,24 @@ func (m Model) listView() string {
 	fmt.Fprintf(&b, "%s\n", headerStyle.Render(fmt.Sprintf(
 		"err list — %d/%d errors   lang: %s   status: %s   (↑↓ navigate, enter detail, e edit, l/s filter, q quit)",
 		len(vis), len(m.Items), orAll(m.Lang), orAll(m.Status))))
-	for i, e := range vis {
+
+	// Scroll window: only the rows around the cursor are rendered, so
+	// hundreds of entries never overflow the screen.
+	start := m.Offset
+	if start > len(vis) {
+		start = len(vis)
+	}
+	end := start + m.visibleRows()
+	if end > len(vis) {
+		end = len(vis)
+	}
+	for i := start; i < end; i++ {
+		e := vis[i]
 		line := fmt.Sprintf("  #%-4d %-7s %-9s %-4s %s",
 			e.ID, e.Language, orAll(e.Pending), fmt.Sprintf("x%d", e.Count), e.Signature)
+		if m.Width > 0 {
+			line = termx.Truncate(line, m.Width)
+		}
 		if i == m.Cursor {
 			line = cursorStyle.Render("> " + strings.TrimPrefix(line, "  "))
 		}
@@ -199,6 +259,9 @@ func (m Model) listView() string {
 	}
 	if len(vis) == 0 {
 		b.WriteString("  (no errors match)\n")
+	} else if start > 0 || end < len(vis) {
+		fmt.Fprintf(&b, "%s\n", noticeStyle.Render(fmt.Sprintf(
+			"  … showing %d-%d of %d (↑/↓ scroll)", start+1, end, len(vis))))
 	}
 	return b.String()
 }

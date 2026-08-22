@@ -2,7 +2,7 @@ package cli
 
 import (
 	"fmt"
-	"os"
+	"io"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -12,10 +12,16 @@ import (
 	"github.com/wumuwutu/dejavu/internal/termx"
 )
 
+// defaultListLimit caps how many rows list-style commands print unless
+// --all is given (long histories must not flood the terminal).
+const defaultListLimit = 20
+
+var pendingAll bool
+
 var pendingCmd = &cobra.Command{
 	Use:     "pending",
 	Short:   "List unresolved errors and the record rate",
-	Example: "  err pending",
+	Example: "  err pending\n  err pending --all",
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dbPath, err := config.DBPath()
@@ -32,12 +38,19 @@ var pendingCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		out := cmd.OutOrStdout()
+		defer termx.PlainUnlessTTY(out)()
 		if len(items) == 0 {
-			fmt.Println("no pending errors")
+			fmt.Fprintln(out, "no pending errors")
 		} else {
-			w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+			shown := items
+			if !pendingAll && len(shown) > defaultListLimit {
+				shown = shown[:defaultListLimit]
+			}
+			w := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 			fmt.Fprintln(w, "ID\tLANG\tSEEN\tFIRST\tLAST\tSIGNATURE")
-			for _, it := range items {
+			for _, it := range shown {
 				fmt.Fprintf(w, "%d\t%s\t%d\t%s\t%s\t%s\n",
 					it.ErrorID, it.Language, it.Count,
 					it.FirstSeen.Format("2006-01-02"), it.LastSeen.Format("2006-01-02"),
@@ -46,7 +59,8 @@ var pendingCmd = &cobra.Command{
 			if err := w.Flush(); err != nil {
 				return err
 			}
-			fmt.Println("\n" + termx.Faint("--err-- record a solution with: ") + termx.Cyan("err fix") + termx.Faint(" <id>"))
+			printMoreLine(out, len(items)-len(shown), "err pending --all")
+			fmt.Fprintln(out, "\n"+termx.Faint("--err-- record a solution with: ")+termx.Cyan("err fix")+termx.Faint(" <id>"))
 		}
 
 		resolved, total, err := st.RecordRate()
@@ -57,11 +71,23 @@ var pendingCmd = &cobra.Command{
 		if total > 0 {
 			rate = float64(resolved) / float64(total) * 100
 		}
-		fmt.Printf("\nrecord rate: %d/%d errors have a solution (%.0f%%)\n", resolved, total, rate)
+		fmt.Fprintf(out, "\nrecord rate: %d/%d errors have a solution (%.0f%%)\n", resolved, total, rate)
 		return nil
 	},
 }
 
+// printMoreLine tells the user how many rows were elided by the default
+// limit and how to see them. hidden <= 0 prints nothing.
+func printMoreLine(out io.Writer, hidden int, allCmd string) {
+	if hidden <= 0 {
+		return
+	}
+	fmt.Fprintf(out, "%s%d%s\n",
+		termx.Faint("--err-- … and "), hidden,
+		termx.Faint(" more (")+termx.Cyan(allCmd)+termx.Faint(")"))
+}
+
 func init() {
+	pendingCmd.Flags().BoolVar(&pendingAll, "all", false, "show all pending errors (default: latest 20)")
 	rootCmd.AddCommand(pendingCmd)
 }

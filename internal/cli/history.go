@@ -14,6 +14,7 @@ import (
 )
 
 var historyProject string
+var historyAll bool
 
 var historyCmd = &cobra.Command{
 	Use:   "history",
@@ -52,8 +53,14 @@ var historyCmd = &cobra.Command{
 		mine := filterByProject(items, dir)
 
 		out := cmd.OutOrStdout()
+		defer termx.PlainUnlessTTY(out)()
 		fmt.Fprintf(out, "%d errors under %s (oldest first)\n\n", len(mine), dir)
-		for _, e := range mine {
+		// Default limit: the most recent entries, still oldest-first.
+		shown := mine
+		if !historyAll && len(shown) > defaultListLimit {
+			shown = shown[len(shown)-defaultListLimit:]
+		}
+		for _, e := range shown {
 			fmt.Fprintf(out, "#%-4d %-10s %-7s %-4d %s\n", e.ID,
 				e.FirstSeen.Format("2006-01-02"), e.Language, e.Count,
 				termx.Truncate(e.Signature, 72))
@@ -61,12 +68,14 @@ var historyCmd = &cobra.Command{
 				fmt.Fprintf(out, "      fix: %s\n", termx.Truncate(e.Solution, 80))
 			}
 		}
+		printMoreLine(out, len(mine)-len(shown), "err history --all")
 		return nil
 	},
 }
 
 func init() {
 	historyCmd.Flags().StringVar(&historyProject, "project", "", "project directory (default: cwd)")
+	historyCmd.Flags().BoolVar(&historyAll, "all", false, "show the full history (default: latest 20)")
 	rootCmd.AddCommand(historyCmd)
 }
 

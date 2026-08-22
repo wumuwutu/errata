@@ -22,7 +22,8 @@ internal/cli/                cobra 命令层（每个文件一个命令）
                              含触发命令 + 立即输入 solution）
   show.go / pending.go / list.go / stats.go / history.go /
   ignore.go / init.go / doctor.go / uninstall.go
-                             同名用户命令；*_test.go 为对应测试
+                             同名用户命令；*_test.go 为对应测试；
+                             pending/list/history 默认只显示最近 20 条（--all 全量）
 
 internal/capture/
   run.go                     PTY 执行器 Run()：stdout 走 PTY、stderr 管道 tee
@@ -58,7 +59,8 @@ internal/hint/hint.go        命中提示 / 解决提示（--err-- 前缀，fain
 internal/termx/termx.go      NO_COLOR 感知 ANSI 调色板 + runewidth 显示宽度
                              截断（CJK/emoji 不断字）+ ~/ 收缩 + TTY 判定
 internal/config/config.go    viper 配置 + XDG 路径 + ignore 黑名单
-internal/list/list.go        err list 的 bubbletea model（Update 为纯函数）
+internal/list/list.go        err list 的 bubbletea model（Update 为纯函数；
+                             光标窗口滚动，只渲染可见行）
 internal/eval/eval.go        语料加载 + 两两判定 precision/recall/F1
 eval/corpus.jsonl            示例语料（格式见 docs/eval.md）
 scripts/hook-it.{bash,zsh}   hook 集成测试脚本（参数：err 二进制路径）

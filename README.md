@@ -55,13 +55,14 @@ err fix -m "LD_LIBRARY_PATH was polluted by conda; conda deactivate and reinstal
 #   --err-- seen 2026-08-22 in ~/proj (occurrence #2)
 #   fix: LD_LIBRARY_PATH was polluted by conda; ... (err show 3 for details)
 
-# List errors you haven't written a solution for, plus your record rate:
+# List errors you haven't written a solution for, plus your record rate
+# (latest 20 by default; --all shows everything):
 err pending
 
 # Record a solution for a specific error (fix always shows the target first):
 err fix 3 -m "pin torch==2.1 in requirements.txt"
 
-# Browse everything in a TUI (plain table when piped):
+# Browse everything in a TUI with scrolling (plain table when piped):
 err list
 
 # Distribution, most repeated errors, weekly trend, record rate:

@@ -160,3 +160,60 @@ func TestEmptyList(t *testing.T) {
 		t.Fatal("e on empty list must not start editing")
 	}
 }
+
+// TestScrollWindow: with a known terminal height the view renders only the
+// rows around the cursor, scrolling as the cursor moves.
+func TestScrollWindow(t *testing.T) {
+	var many []store.Error
+	for i := 1; i <= 30; i++ {
+		many = append(many, store.Error{ID: int64(i), Signature: "TypeError: x", Language: "python", Pending: "pending"})
+	}
+	m := New(many)
+	m.Height = 7 // => 5 visible rows
+	m.Width = 80
+
+	lines := strings.Split(strings.TrimRight(m.View(), "\n"), "\n")
+	if got := len(lines); got != 1+5+1 { // header + window + scroll status
+		t.Fatalf("rendered %d lines, want 7:\n%s", got, m.View())
+	}
+	if !strings.Contains(m.View(), "showing 1-5 of 30") {
+		t.Fatalf("missing scroll status:\n%s", m.View())
+	}
+
+	// Move below the window: the window scrolls down with the cursor.
+	var tm tea.Model = m
+	for i := 0; i < 10; i++ {
+		tm, _ = tm.(Model).Update(key("j"))
+	}
+	m = tm.(Model)
+	if m.Cursor != 10 || m.Offset != 6 {
+		t.Fatalf("cursor=%d offset=%d, want 10/6", m.Cursor, m.Offset)
+	}
+	if !strings.Contains(m.View(), "showing 7-11 of 30") {
+		t.Fatalf("window did not scroll:\n%s", m.View())
+	}
+
+	// And back up past the top.
+	for i := 0; i < 10; i++ {
+		tm, _ = tm.(Model).Update(key("k"))
+	}
+	m = tm.(Model)
+	if m.Cursor != 0 || m.Offset != 0 {
+		t.Fatalf("cursor=%d offset=%d, want 0/0", m.Cursor, m.Offset)
+	}
+}
+
+// TestScrollWindowResizes: a WindowSizeMsg drives the visible row count.
+func TestScrollWindowResizes(t *testing.T) {
+	var many []store.Error
+	for i := 1; i <= 10; i++ {
+		many = append(many, store.Error{ID: int64(i), Signature: "TypeError: x", Language: "python"})
+	}
+	m := New(many)
+	tm, _ := m.Update(tea.WindowSizeMsg{Width: 60, Height: 4})
+	m = tm.(Model)
+	lines := strings.Split(strings.TrimRight(m.View(), "\n"), "\n")
+	if got := len(lines); got != 1+2+1 { // header + 2 rows + status
+		t.Fatalf("rendered %d lines, want 4:\n%s", got, m.View())
+	}
+}
