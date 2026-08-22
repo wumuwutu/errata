@@ -32,10 +32,25 @@ var genericMarkers = []*regexp.Regexp{
 // unlike quoted values elsewhere which carry error identity.
 var threadRe = regexp.MustCompile(`(?i)\bException in thread\s+"[^"]*"`)
 
+// shellBuiltinRe matches a shell builtin's error line by shape, in any
+// locale: shell name, builtin name, message — e.g. the zh_CN
+// "bash: cd: dsad: 没有那个文件或目录", which no English keyword marker
+// recognizes. Precision check: prose almost never carries "word: "
+// immediately after "<shell>: ".
+var shellBuiltinRe = regexp.MustCompile(`^(?:bash|zsh|sh|dash|fish): [a-z][a-z0-9_-]*: .+$`)
+
+// shellOperandRe isolates the volatile operand in that shape ("dsad"
+// above): the segment after "shell: builtin:" up to the next ": " is the
+// argument the user typed, not the error's identity — same role as <PATH>
+// in normalization. Lines without a second colon (e.g. "bash: cd: too
+// many arguments") carry no operand and stay untouched.
+var shellOperandRe = regexp.MustCompile(`^((?:bash|zsh|sh|dash|fish): [a-z][a-z0-9_-]*: )[^:]+(: .+)$`)
+
 // genericSignature is the fallback extractor: registered last, it claims
 // output no language extractor recognized, but only when a line carries an
-// unambiguous error marker. The signature is the last matching line,
-// normalized; the language is reported as "unknown".
+// unambiguous error marker or the shell-builtin shape. The signature is
+// the last matching line, normalized; the language is reported as
+// "unknown".
 func genericSignature(text string, disabled map[string]bool) (string, bool) {
 	found := ""
 	for _, line := range strings.Split(text, "\n") {
@@ -43,12 +58,21 @@ func genericSignature(text string, disabled map[string]bool) (string, bool) {
 		if line == "" {
 			continue
 		}
+		matched := false
 		for _, re := range genericMarkers {
 			if re.MatchString(line) {
 				line = threadRe.ReplaceAllString(line, "Exception in thread <THREAD>")
 				found = NormalizeWith(line, disabled)
+				matched = true
 				break
 			}
+		}
+		// Keyword markers win first (existing signatures must not move);
+		// the structural shell-builtin rule only claims what they miss —
+		// that is exactly the localized-output case.
+		if !matched && shellBuiltinRe.MatchString(line) {
+			line = shellOperandRe.ReplaceAllString(line, "${1}<ARG>${2}")
+			found = NormalizeWith(line, disabled)
 		}
 	}
 	if found == "" {

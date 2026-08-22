@@ -11,7 +11,11 @@ import (
 // value 6, precision-first).
 const SimilarityThreshold = 6
 
-var tokenRe = regexp.MustCompile(`[a-z0-9_<>]+`)
+// Tokens are lowercase word runs. CJK ideographs count too: without them
+// a localized message (zh_CN "bash: cd: x: 没有那个文件或目录" vs
+// "权限不够") contributes zero tokens and distinct errors would share a
+// fingerprint — a precision violation (dev-guide §6.3).
+var tokenRe = regexp.MustCompile(`[a-z0-9_<>\p{Han}]+`)
 
 // SimHash computes a 64-bit SimHash of text (a normalized error
 // signature). Deterministic: identical signatures always yield identical

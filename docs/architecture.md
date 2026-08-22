@@ -26,9 +26,11 @@ internal/
 │   ├── fingerprint.go         管线入口 Fingerprint()：签名 → hex 指纹
 │   ├── normalize.go           ANSI 剥离 + 归一化规则（uuid/ts/ip/addr/path/val/num）
 │   ├── signature.go           语言注册表（Extractor/Register）+ python/node 精确提取器
-│   ├── generic.go             unknown 保底提取器：只信明确错误标记，注册在最后，
-│   │                          永不抢 python/node 的识别
-│   └── simhash.go             自实现 64 位 SimHash + 海明距离（相似阈值 6）
+│   ├── generic.go             unknown 保底提取器：只信明确错误标记 + shell 内建
+│   │                          错误结构（shell: builtin: 消息，语言无关；操作数
+│   │                          置为 <ARG>），注册在最后，永不抢 python/node 的识别
+│   └── simhash.go             自实现 64 位 SimHash（token 含 CJK 表意文字，
+│                              本地化消息不失分辨力）+ 海明距离（相似阈值 6）
 │
 ├── match/match.go             匹配层：Matcher 接口（Exact/Similar）+ SimHash 实现
 │

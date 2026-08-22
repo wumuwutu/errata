@@ -129,7 +129,9 @@ at most once per error per day. Unrelated successes (`ls`, `vim`, …) never tri
   family which prints none; Node: the first error line of the stack). Everything else
   falls back to a conservative generic extractor that only trusts unambiguous markers
   (`Exception in thread …`, `panic:`, `fatal:`, `file.c:12: error: …`,
-  `command not found`, …) and records the error as language `unknown`. The signature
+  `command not found`, …) plus the locale-independent shell-builtin shape
+  (`bash: cd: …: <message>` — matched structurally, so a zh_CN message is
+  recorded too), and records the error as language `unknown`. The signature
   is hashed with a self-contained 64-bit SimHash. Identical fingerprints hit directly;
   a Hamming distance ≤ 6 is shown as a degraded "similar error". Precision over recall:
   output with no clear error marker is skipped, never guessed.
@@ -151,8 +153,8 @@ at most once per error per day. Unrelated successes (`ls`, `vim`, …) never tri
 Deliberately small:
 
 - Precise signatures for Python and Node; a conservative generic fallback records
-  other errors as `unknown` (Java/gcc/Go/shell markers). Output with no clear error
-  marker is skipped — precision over recall.
+  other errors as `unknown` (Java/gcc/Go markers, shell builtins in any locale).
+  Output with no clear error marker is skipped — precision over recall.
 - Capture via the shell hook (zsh/bash) and `err run`.
 - No LLM features, reports, watch or MCP yet.
 

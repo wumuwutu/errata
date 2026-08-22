@@ -27,3 +27,5 @@
 {"raw": "bash[9871]: pyhton: command not found\n", "language": "unknown", "group": "shell-cmdnotfound"}
 {"raw": "Traceback (most recent call last):\n  File \"/home/alice/ml/train.py\", line 1, in <module>\n    import numpy\nModuleNotFoundError: No module named 'numpy'\n", "language": "python", "group": "py-module-numpy"}
 {"raw": "Traceback (most recent call last):\n  File \"/home/alice/ml/train.py\", line 1, in <module>\n    import torch\nModuleNotFoundError: No module named 'torch'\n", "language": "python", "group": "py-module-torch"}
+{"raw": "bash: cd: dsad: 没有那个文件或目录\n", "language": "unknown", "group": "shell-builtin-cd-zh"}
+{"raw": "bash: cd: projets: 没有那个文件或目录\n", "language": "unknown", "group": "shell-builtin-cd-zh"}
