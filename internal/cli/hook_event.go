@@ -35,13 +35,10 @@ var hookEvent struct {
 // printf lines in internal/hooks/scripts/errata.{bash,zsh}.
 const sentinelPrefix = "\x1b]6973;errata;"
 
-// sentinelOSC is the OSC code carrying the sentinel (6973, ours). The
-// payload word after it is the product name, which CHANGED once already —
-// so parsing must key on the sequence number alone and ignore the payload
-// word: hooks installed before the rename keep emitting the old word until
-// their shell restarts, and records must not be lost in that window.
+// sentinelRe matches this command's sentinel exactly (product word and
+// sequence number).
 func sentinelRe(seq int64) *regexp.Regexp {
-	return regexp.MustCompile(`\x1b\]6973;[^;\x07]*;` + strconv.FormatInt(seq, 10) + `\x07`)
+	return regexp.MustCompile(regexp.QuoteMeta(sentinelPrefix) + strconv.FormatInt(seq, 10) + `\x07`)
 }
 
 // hookEventCmd is the internal entry point the shell hook calls after a

@@ -60,13 +60,6 @@ func rcBlock(shell string) string {
 	return fmt.Sprintf("\n# errata shell hook — https://github.com/wumuwutu/errata\n%s\n", EvalLine(shell))
 }
 
-// legacyRCBlock is the block appended before the product rename (its
-// comment word and repo URL still say "dejavu"); RemoveRC must recognize
-// it too, so old installations uninstall cleanly.
-func legacyRCBlock(shell string) string {
-	return fmt.Sprintf("\n# dejavu shell hook — https://github.com/wumuwutu/dejavu\n%s\n", EvalLine(shell))
-}
-
 // WriteRC appends the eval line to the shell's rc file. It reports the
 // file touched and whether the line was already present (then nothing is
 // written). The rc file is created if missing.
@@ -116,8 +109,6 @@ func RemoveRC(shell string) (rcPath string, removed bool, err error) {
 	switch {
 	case strings.Contains(content, rcBlock(shell)):
 		out = strings.Replace(content, rcBlock(shell), "", 1)
-	case strings.Contains(content, legacyRCBlock(shell)):
-		out = strings.Replace(content, legacyRCBlock(shell), "", 1)
 	case strings.Contains(content, EvalLine(shell)+"\n"):
 		out = strings.Replace(content, EvalLine(shell)+"\n", "", 1)
 	case strings.Contains(content, EvalLine(shell)):

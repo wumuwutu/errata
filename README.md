@@ -1,11 +1,5 @@
 # err (errata)
 
-> **Renamed:** the project was formerly known as **dejavu**; since v0.1.9 it is
-> **errata**. The command is unchanged — still `err`. Existing data and config
-> directories (`~/.local/share/dejavu`, `~/.config/dejavu`, `dejavu.db`) are
-> migrated automatically on first run, and shell hooks installed before the
-> rename keep working until you restart the shell.
-
 **A personal memory for terminal errors.** `err` captures failing commands, fingerprints the
 error, remembers how *you* fixed it — and hands the fix back the next time the same error
 shows up. Local-first: everything stays in a SQLite database on your machine, nothing is

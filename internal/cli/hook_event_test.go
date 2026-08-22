@@ -53,24 +53,8 @@ func TestReadStderrDeltaSentinel(t *testing.T) {
 		t.Fatalf("missing sentinel must yield empty delta, got %q", got)
 	}
 
-	// seq == 0: legacy pre-sentinel hook — raw offset slice (old behavior).
+	// seq == 0: pre-sentinel hook — raw offset slice (old behavior).
 	if got := string(readStderrDelta(f2, 0, 0)); got != "just some output\n" {
-		t.Fatalf("legacy fallback = %q", got)
-	}
-}
-
-// TestReadStderrDeltaLegacyPayload: hooks installed before the product
-// rename emit the sentinel with the OLD payload word. Parsing keys on the
-// sequence number alone, so those sessions keep recording until restart.
-func TestReadStderrDeltaLegacyPayload(t *testing.T) {
-	legacy := "\x1b]6973;oldproductname;4\a" // any payload word, same OSC code + seq
-	stderr := "TypeError: keeps working\n"
-	f := writeBuffer(t, []byte("junk before\n"+legacy+stderr))
-	if got := string(readStderrDelta(f, 0, 4)); got != stderr {
-		t.Fatalf("legacy payload word not accepted: %q", got)
-	}
-	// A different seq still must not match.
-	if got := readStderrDelta(f, 0, 5); len(got) != 0 {
-		t.Fatalf("wrong seq must yield empty delta, got %q", got)
+		t.Fatalf("pre-sentinel fallback = %q", got)
 	}
 }
