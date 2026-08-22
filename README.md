@@ -85,8 +85,10 @@ err ignore remove --command npm
 automatically — never deleted, just out of the pending queue.
 
 When a command succeeds within `success_window_minutes` (default 5) after a pending error
-in the same directory, err prints a single gray line — "looks like you just fixed
-<signature>? `err fix` to record the solution" — at most once per error per day.
+in the same directory — and the successful command runs the *same program* as the one that
+failed (`python3` counts as `python`) — err prints a single gray line: "looks like you just
+fixed <signature>? `err fix` to record the solution" — at most once per error per day.
+Unrelated successes (`ls`, `vim`, …) never trigger it.
 
 ## How it works
 

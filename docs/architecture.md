@@ -67,9 +67,11 @@ B. shell hook（用户在 hooked shell 里跑任意命令）
    scripts/dejavu.{zsh,bash}
      preexec/DEBUG: 快照 stderr 缓冲偏移 + 命令行
      precmd/PROMPT_COMMAND: 读 $?
-       成功 → err hook-event --exit-code 0 --cwd $PWD
+       成功 → err hook-event --exit-code 0 --cwd $PWD --command C
               → cli/hook_event.go:31 → cli/solved.go:21 solvedHint()
-              （同目录 5 分钟内有 pending → 灰色一行提醒，24h 内不重复）
+              （同目录 5 分钟内有 pending，且成功命令与报错命令是同一程序
+               （python3==python）→ 灰色一行提醒，24h 内不重复；
+               无关命令（如 ls）成功不提醒——用户实测纠偏，见 827be5c）
        失败且 stderr 缓冲增长 → err hook-event --exit-code N --offset O \
               --stderr-file F --cwd D --command C
               → cli/hook_event.go:31 → 读增量 → cli/record.go:20 recordFailure()
