@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/wumuwutu/dejavu/internal/capture"
-	"github.com/wumuwutu/dejavu/internal/config"
+	"github.com/wumuwutu/errata/internal/capture"
+	"github.com/wumuwutu/errata/internal/config"
 )
 
 var runCmd = &cobra.Command{

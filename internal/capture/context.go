@@ -57,7 +57,7 @@ func gitHead(dir string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// runtimeVersion probes the interpreter version for the runtimes dejavu
+// runtimeVersion probes the interpreter version for the runtimes errata
 // fingerprints (python/node). Anything else yields "".
 func runtimeVersion(base string) string {
 	var probe string

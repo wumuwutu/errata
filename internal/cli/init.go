@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/wumuwutu/dejavu/internal/hooks"
+	"github.com/wumuwutu/errata/internal/hooks"
 )
 
 var initWrite bool
@@ -48,7 +48,7 @@ var initCmd = &cobra.Command{
 			return nil
 		}
 		fmt.Fprintf(os.Stderr, "err: appended to %s:\n", rcPath)
-		fmt.Fprintf(os.Stderr, "  # dejavu shell hook\n  %s\n", hooks.EvalLine(shell))
+		fmt.Fprintf(os.Stderr, "  # errata shell hook\n  %s\n", hooks.EvalLine(shell))
 		fmt.Fprintf(os.Stderr, "restart your shell or run: source %s\n", rcPath)
 		return nil
 	},

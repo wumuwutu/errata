@@ -12,8 +12,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/wumuwutu/dejavu/internal/store"
-	"github.com/wumuwutu/dejavu/internal/termx"
+	"github.com/wumuwutu/errata/internal/store"
+	"github.com/wumuwutu/errata/internal/termx"
 )
 
 var (

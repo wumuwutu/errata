@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/wumuwutu/dejavu/internal/config"
+	"github.com/wumuwutu/errata/internal/config"
 )
 
 var (
@@ -19,7 +19,7 @@ var ignoreCmd = &cobra.Command{
 	Use:   "ignore",
 	Short: "Manage the recording blacklist (commands and directories)",
 	Long: "Errors raised by blacklisted commands, or under blacklisted directory\n" +
-		"prefixes, are never recorded. Stored in ~/.config/dejavu/config.yaml.",
+		"prefixes, are never recorded. Stored in ~/.config/errata/config.yaml.",
 }
 
 var ignoreAddCmd = &cobra.Command{

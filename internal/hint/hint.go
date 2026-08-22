@@ -1,6 +1,6 @@
 // Package hint renders the restrained notices shown when a captured error
 // has been seen before (dev-guide §7.6: at most two lines, faint gray,
-// never steal the show). All dejavu notices share one style: a `--err--`
+// never steal the show). All errata notices share one style: a `--err--`
 // prefix, faint base text, cyan command names and bright key payloads, so
 // they read as system text next to the user's own terminal output. Colors
 // honor NO_COLOR (see internal/termx).
@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wumuwutu/dejavu/internal/store"
-	"github.com/wumuwutu/dejavu/internal/termx"
+	"github.com/wumuwutu/errata/internal/store"
+	"github.com/wumuwutu/errata/internal/termx"
 )
 
 // maxSolutionCols bounds the solution/signature excerpt inside a hint.

@@ -12,7 +12,7 @@ import (
 	"golang.org/x/term"
 )
 
-// Palette. faint is the base color of every dejavu notice (kept visually
+// Palette. faint is the base color of every errata notice (kept visually
 // distinct from the user's own terminal text); cyan marks command names;
 // green marks the "looks fixed" keyword; bright marks key payloads like
 // the error signature or the recorded solution.
@@ -48,7 +48,7 @@ func paint(color, s string) string {
 	return color + s + reset
 }
 
-// Faint paints s in the base faint gray (the default for dejavu text).
+// Faint paints s in the base faint gray (the default for errata text).
 func Faint(s string) string { return paint(faint, s) }
 
 // Cyan paints a command name (err fix / err show / err pending).

@@ -21,7 +21,7 @@ func TestMigrateFreshDatabase(t *testing.T) {
 
 func TestMigrateReopenIsNoop(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "dejavu.db")
+	path := filepath.Join(dir, "errata.db")
 
 	s, err := Open(path)
 	if err != nil {
@@ -47,7 +47,7 @@ func TestMigrateReopenIsNoop(t *testing.T) {
 // TestMigrateLegacyDatabase simulates a v0.1.0 database (all tables, no
 // schema_version) and checks the upgrade preserves existing rows.
 func TestMigrateLegacyDatabase(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "dejavu.db")
+	path := filepath.Join(t.TempDir(), "errata.db")
 
 	db, err := sql.Open("sqlite", "file:"+path)
 	if err != nil {

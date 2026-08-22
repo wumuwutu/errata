@@ -5,7 +5,7 @@
 set -u
 
 ERR="$1"
-TMP=$(mktemp -d "${TMPDIR:-/tmp}/dejavu-hooktest-zsh.XXXXXX")
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/errata-hooktest-zsh.XXXXXX")
 trap 'rm -rf "$TMP"' EXIT
 export XDG_DATA_HOME="$TMP/data"
 export XDG_CONFIG_HOME="$TMP/conf"

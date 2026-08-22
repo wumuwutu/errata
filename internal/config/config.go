@@ -1,5 +1,5 @@
-// Package config loads and persists dejavu's YAML configuration
-// (~/.config/dejavu/config.yaml, XDG-aware) and resolves data paths.
+// Package config loads and persists errata's YAML configuration
+// (~/.config/errata/config.yaml, XDG-aware) and resolves data paths.
 package config
 
 import (
@@ -13,7 +13,13 @@ import (
 	"github.com/spf13/viper"
 )
 
-const appName = "dejavu"
+const appName = "errata"
+
+// legacyAppName is the pre-rename product name. Directories and the
+// database file from before the rename still live under it; they are
+// migrated on first use (see migrateLegacyDir / DBPath) — losing user data
+// in a rename is a fatal accident (dev-guide §16.5).
+const legacyAppName = "dejavu"
 
 // Config is the user-facing configuration.
 type Config struct {
@@ -46,28 +52,62 @@ func ConfigDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(base, appName), nil
+	return migrateLegacyDir(base), nil
 }
 
 // DataDir returns the data directory, honoring XDG_DATA_HOME.
 func DataDir() (string, error) {
 	if d := os.Getenv("XDG_DATA_HOME"); d != "" {
-		return filepath.Join(d, appName), nil
+		return migrateLegacyDir(d), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".local", "share", appName), nil
+	return migrateLegacyDir(filepath.Join(home, ".local", "share")), nil
 }
 
-// DBPath returns the path of the SQLite database.
+// migrateLegacyDir performs the one-time rename of the pre-rename
+// directory (base/legacyAppName) to the current one (base/appName): only
+// when the new one does not exist and the old one does. If the rename
+// fails (e.g. read-only fs), the old path keeps being used — nothing may
+// break because of the migration itself.
+func migrateLegacyDir(base string) string {
+	newDir := filepath.Join(base, appName)
+	oldDir := filepath.Join(base, legacyAppName)
+	if _, err := os.Stat(newDir); os.IsNotExist(err) {
+		if _, err := os.Stat(oldDir); err == nil {
+			if err := os.Rename(oldDir, newDir); err == nil {
+				return newDir
+			}
+			return oldDir
+		}
+	}
+	return newDir
+}
+
+// DBPath returns the path of the SQLite database, migrating the pre-rename
+// dejavu.db (plus its -wal/-shm sidecars) to errata.db on first use.
 func DBPath() (string, error) {
 	dir, err := DataDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "dejavu.db"), nil
+	newDB := filepath.Join(dir, "errata.db")
+	oldDB := filepath.Join(dir, legacyAppName+".db")
+	if _, err := os.Stat(newDB); os.IsNotExist(err) {
+		if _, err := os.Stat(oldDB); err == nil {
+			if err := os.Rename(oldDB, newDB); err != nil {
+				return oldDB, nil // rename failed: keep using the old file
+			}
+			// A live WAL holds committed-but-uncheckpointed writes; carry it
+			// over too, best effort.
+			for _, suffix := range []string{"-wal", "-shm"} {
+				_ = os.Rename(oldDB+suffix, newDB+suffix)
+			}
+		}
+	}
+	return newDB, nil
 }
 
 func configFile() (string, error) {

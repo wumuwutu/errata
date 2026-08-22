@@ -5,8 +5,8 @@
 package match
 
 import (
-	"github.com/wumuwutu/dejavu/internal/fingerprint"
-	"github.com/wumuwutu/dejavu/internal/store"
+	"github.com/wumuwutu/errata/internal/fingerprint"
+	"github.com/wumuwutu/errata/internal/store"
 )
 
 // Matcher finds a prior record for a fingerprint.

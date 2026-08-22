@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/wumuwutu/dejavu/internal/config"
-	"github.com/wumuwutu/dejavu/internal/hooks"
-	"github.com/wumuwutu/dejavu/internal/store"
+	"github.com/wumuwutu/errata/internal/config"
+	"github.com/wumuwutu/errata/internal/hooks"
+	"github.com/wumuwutu/errata/internal/store"
 )
 
 // hookBudget is the prompt-path performance red line (dev-guide §9).
@@ -38,7 +38,7 @@ var doctorCmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		out := cmd.OutOrStdout()
-		fmt.Fprintf(out, "err doctor — dejavu v%s\n\n", Version)
+		fmt.Fprintf(out, "err doctor — errata v%s\n\n", Version)
 
 		var results []checkResult
 		results = append(results, checkDatabase())
@@ -107,7 +107,7 @@ func checkConfig() checkResult {
 }
 
 // checkHook verifies the hook line is in the current shell's rc and that
-// this shell actually loaded it (DEJAVU_HOOK marker, exported by the hook).
+// this shell actually loaded it (ERRATA_HOOK marker, exported by the hook).
 func checkHook() checkResult {
 	shell := filepath.Base(os.Getenv("SHELL"))
 	if _, ok := hooks.Script(shell); !ok {
@@ -119,7 +119,7 @@ func checkHook() checkResult {
 	}
 	data, _ := os.ReadFile(rc)
 	installed := strings.Contains(string(data), hooks.EvalLine(shell))
-	loaded := os.Getenv("DEJAVU_HOOK") != ""
+	loaded := os.Getenv("ERRATA_HOOK") != ""
 	switch {
 	case installed && loaded:
 		return checkResult{checkOK, "hook", fmt.Sprintf("%s hook installed in %s and active", shell, rc)}

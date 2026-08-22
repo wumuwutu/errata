@@ -15,7 +15,7 @@ import (
 
 	_ "modernc.org/sqlite" // pure-Go sqlite driver (database/sql name "sqlite")
 
-	"github.com/wumuwutu/dejavu/internal/fingerprint"
+	"github.com/wumuwutu/errata/internal/fingerprint"
 )
 
 const timeLayout = time.RFC3339Nano

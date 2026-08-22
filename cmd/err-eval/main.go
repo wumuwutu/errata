@@ -17,8 +17,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/wumuwutu/dejavu/internal/eval"
-	"github.com/wumuwutu/dejavu/internal/fingerprint"
+	"github.com/wumuwutu/errata/internal/eval"
+	"github.com/wumuwutu/errata/internal/fingerprint"
 )
 
 func main() {

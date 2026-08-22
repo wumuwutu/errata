@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wumuwutu/dejavu/internal/config"
-	"github.com/wumuwutu/dejavu/internal/hint"
-	"github.com/wumuwutu/dejavu/internal/store"
+	"github.com/wumuwutu/errata/internal/config"
+	"github.com/wumuwutu/errata/internal/hint"
+	"github.com/wumuwutu/errata/internal/store"
 )
 
 // remindInterval bounds the success nudge to once per error per 24h

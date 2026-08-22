@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wumuwutu/dejavu/internal/fingerprint"
+	"github.com/wumuwutu/errata/internal/fingerprint"
 )
 
 // Entry is one labeled corpus line.

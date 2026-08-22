@@ -1,4 +1,10 @@
-# err (dejavu)
+# err (errata)
+
+> **Renamed:** the project was formerly known as **dejavu**; since v0.1.9 it is
+> **errata**. The command is unchanged — still `err`. Existing data and config
+> directories (`~/.local/share/dejavu`, `~/.config/dejavu`, `dejavu.db`) are
+> migrated automatically on first run, and shell hooks installed before the
+> rename keep working until you restart the shell.
 
 **A personal memory for terminal errors.** `err` captures failing commands, fingerprints the
 error, remembers how *you* fixed it — and hands the fix back the next time the same error
@@ -8,7 +14,7 @@ ever uploaded.
 ## Install
 
 ```sh
-go install github.com/wumuwutu/dejavu/cmd/err@latest
+go install github.com/wumuwutu/errata/cmd/err@latest
 ```
 
 This produces a single `err` binary. Requires Go 1.22+ (built with Go 1.27, CGO-free).
@@ -92,7 +98,7 @@ err ignore remove --command npm
 ```
 
 `err run` always exits with the wrapped command's exit code. Pending errors older than
-`archive_after_days` (default 30, set in `~/.config/dejavu/config.yaml`) are archived
+`archive_after_days` (default 30, set in `~/.config/errata/config.yaml`) are archived
 automatically — never deleted, just out of the pending queue.
 
 When a command succeeds within `success_window_minutes` (default 5) after a pending error
@@ -130,10 +136,10 @@ at most once per error per day. Unrelated successes (`ls`, `vim`, …) never tri
   a Hamming distance ≤ 6 is shown as a degraded "similar error". Precision over recall:
   output with no clear error marker is skipped, never guessed.
 - **Storage** — local SQLite ([modernc.org/sqlite](https://gitlab.com/cznic/sqlite),
-  pure Go, no CGO) at `~/.local/share/dejavu/dejavu.db` (XDG-aware), with an FTS5
+  pure Go, no CGO) at `~/.local/share/errata/errata.db` (XDG-aware), with an FTS5
   full-text index over signatures and solutions. Config lives at
-  `~/.config/dejavu/config.yaml`.
-- **Hints** — every dejavu notice starts with `--err--` and uses faint gray
+  `~/.config/errata/config.yaml`.
+- **Hints** — every errata notice starts with `--err--` and uses faint gray
   (ANSI 90) base text, so it reads as system text next to your own terminal
   output: command names (`err fix` / `err show` / `err pending`) in cyan,
   `looks fixed` in bright green, signatures and solutions in bright white.

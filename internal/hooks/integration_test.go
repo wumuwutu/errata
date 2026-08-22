@@ -82,6 +82,18 @@ func TestRemoveRC(t *testing.T) {
 	if string(data) != "export FOO=1\n" {
 		t.Fatalf("bare-line removal damaged the file:\n%q", data)
 	}
+
+	// A pre-rename hook block (legacy comment + URL) is removed too.
+	if err := os.WriteFile(bashRC, []byte("export FOO=1\n"+legacyRCBlock("bash")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, removed, err := RemoveRC("bash"); err != nil || !removed {
+		t.Fatalf("RemoveRC legacy block: removed=%v err=%v", removed, err)
+	}
+	data, _ = os.ReadFile(bashRC)
+	if string(data) != "export FOO=1\n" {
+		t.Fatalf("legacy-block removal damaged the file:\n%q", data)
+	}
 }
 
 // TestHookIntegration runs the shell integration scripts against a freshly

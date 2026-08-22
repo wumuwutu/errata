@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/wumuwutu/dejavu/internal/termx"
+	"github.com/wumuwutu/errata/internal/termx"
 )
 
 // confirmDestructive gates a destructive command behind a typed answer on

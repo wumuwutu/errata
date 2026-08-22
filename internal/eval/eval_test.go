@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/wumuwutu/dejavu/internal/fingerprint"
+	"github.com/wumuwutu/errata/internal/fingerprint"
 )
 
 const pyA1 = "Traceback (most recent call last):\n  File \"/home/a/x.py\", line 1, in <module>\nTypeError: boom 'x'\n"

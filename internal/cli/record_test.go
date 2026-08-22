@@ -3,7 +3,7 @@ package cli
 import (
 	"testing"
 
-	"github.com/wumuwutu/dejavu/internal/store"
+	"github.com/wumuwutu/errata/internal/store"
 )
 
 type fakeMatcher struct {

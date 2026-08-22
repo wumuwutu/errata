@@ -2,16 +2,17 @@ package cli
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/wumuwutu/dejavu/internal/config"
-	"github.com/wumuwutu/dejavu/internal/hooks"
+	"github.com/wumuwutu/errata/internal/config"
+	"github.com/wumuwutu/errata/internal/hooks"
 )
 
 var hookEvent struct {
@@ -31,8 +32,17 @@ var hookEvent struct {
 // after ITS sentinel — late bytes from previous commands (prompt echo,
 // slow tee flushes, output of `err ...` commands) can never leak in, no
 // matter how far behind the tee subprocess is. Keep in sync with the
-// printf lines in internal/hooks/scripts/dejavu.{bash,zsh}.
-const sentinelPrefix = "\x1b]6973;dejavu;"
+// printf lines in internal/hooks/scripts/errata.{bash,zsh}.
+const sentinelPrefix = "\x1b]6973;errata;"
+
+// sentinelOSC is the OSC code carrying the sentinel (6973, ours). The
+// payload word after it is the product name, which CHANGED once already —
+// so parsing must key on the sequence number alone and ignore the payload
+// word: hooks installed before the rename keep emitting the old word until
+// their shell restarts, and records must not be lost in that window.
+func sentinelRe(seq int64) *regexp.Regexp {
+	return regexp.MustCompile(`\x1b\]6973;[^;\x07]*;` + strconv.FormatInt(seq, 10) + `\x07`)
+}
 
 // hookEventCmd is the internal entry point the shell hook calls after a
 // failing command. It is hidden from help and must NEVER break the prompt:
@@ -108,10 +118,11 @@ func readStderrDelta(file string, offset, seq int64) []byte {
 	if seq <= 0 {
 		return slice
 	}
-	mark := fmt.Appendf(nil, "%s%d\a", sentinelPrefix, seq)
-	i := bytes.LastIndex(slice, mark)
-	if i < 0 {
+	// Match the sentinel by sequence number, ignoring the payload word
+	// (see sentinelRe): pre-rename hooks must keep working.
+	matches := sentinelRe(seq).FindAllIndex(slice, -1)
+	if len(matches) == 0 {
 		return nil
 	}
-	return slice[i+len(mark):]
+	return slice[matches[len(matches)-1][1]:]
 }

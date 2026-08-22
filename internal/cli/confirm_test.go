@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wumuwutu/dejavu/internal/termx"
+	"github.com/wumuwutu/errata/internal/termx"
 )
 
 func TestConfirmAnswer(t *testing.T) {

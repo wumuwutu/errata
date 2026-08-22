@@ -7,8 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/wumuwutu/dejavu/internal/store"
-	"github.com/wumuwutu/dejavu/internal/termx"
+	"github.com/wumuwutu/errata/internal/store"
+	"github.com/wumuwutu/errata/internal/termx"
 )
 
 func rec() *store.Error {

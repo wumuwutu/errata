@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wumuwutu/dejavu/internal/store"
+	"github.com/wumuwutu/errata/internal/store"
 )
 
 func TestResolveFixTargetLatestPending(t *testing.T) {

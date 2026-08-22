@@ -9,7 +9,7 @@ import (
 
 func openTemp(t *testing.T) *Store {
 	t.Helper()
-	s, err := Open(filepath.Join(t.TempDir(), "dejavu.db"))
+	s, err := Open(filepath.Join(t.TempDir(), "errata.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -385,7 +385,7 @@ func TestClearAll(t *testing.T) {
 // TestMigration3Autoincrement: a v0.1.5 (schema v2) database upgrades in
 // place, data intact, and ids are never reused after deleting the max id.
 func TestMigration3Autoincrement(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "dejavu.db")
+	path := filepath.Join(t.TempDir(), "errata.db")
 
 	// Build a schema-v2 database by hand (migrations 1+2 only).
 	db, err := sql.Open("sqlite", path)

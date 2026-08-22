@@ -11,10 +11,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/wumuwutu/dejavu/internal/config"
-	"github.com/wumuwutu/dejavu/internal/list"
-	"github.com/wumuwutu/dejavu/internal/store"
-	"github.com/wumuwutu/dejavu/internal/termx"
+	"github.com/wumuwutu/errata/internal/config"
+	"github.com/wumuwutu/errata/internal/list"
+	"github.com/wumuwutu/errata/internal/store"
+	"github.com/wumuwutu/errata/internal/termx"
 )
 
 var listCmd = &cobra.Command{

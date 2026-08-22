@@ -1,4 +1,4 @@
-# dejavu (err) 架构说明
+# errata (err) 架构说明
 
 > 面向想自己改代码的项目作者。行号以 v0.1.2 为准，函数名比行号更可靠——漂移时以函数名为准。
 > 设计意图与红线在 `docs/dev-guide.md`；本文只描述"代码现在长什么样"。
@@ -16,8 +16,8 @@ internal/
 │   └── context.go             现场捕获 SceneFor()：命令行、cwd、git HEAD、运行时版本、OS
 │
 ├── hooks/                     捕获层 B：shell hook（无感捕获）
-│   ├── scripts/dejavu.zsh     preexec/precmd + stderr tee 分流 + 命令边界哨兵
-│   ├── scripts/dejavu.bash    DEBUG trap + PROMPT_COMMAND（兼容 bash 3.2）
+│   ├── scripts/errata.zsh     preexec/precmd + stderr tee 分流 + 命令边界哨兵
+│   ├── scripts/errata.bash    DEBUG trap + PROMPT_COMMAND（兼容 bash 3.2）
 │   ├── hooks.go               脚本嵌入（go:embed）、rc 写入/精准移除
 │   ├── sessions.go            CleanStaleSessions：清理 7 天前的 session 缓冲
 │   └── *_test.go              真实 shell 集成测试 + PTY 端到端测试
@@ -73,13 +73,13 @@ A. err run python app.py
      → cli/record.go:20 recordFailure()
 
 B. shell hook（用户在 hooked shell 里跑任意命令）
-   scripts/dejavu.{zsh,bash}
+   scripts/errata.{zsh,bash}
      preexec/DEBUG: 快照 stderr 缓冲偏移 + 命令行，然后向 stderr 写一个
-       不可见 OSC 哨兵（\x1b]6973;dejavu;<seq>\a，终端静默忽略）。
+       不可见 OSC 哨兵（\x1b]6973;errata;<seq>\a，终端静默忽略）。
        哨兵在 tee 管道里 FIFO 排在所有滞留字节之后——tee 异步落盘再慢
        （WSL 实测可达秒级），前一条命令的 stderr/prompt 回显/err 自身输出
        也永远不会越过哨兵进入本命令的增量（v0.1.5 修复命令错位）
-     precmd/PROMPT_COMMAND: 读 $?，并无条件消费/清空 __dejavu_cmd
+     precmd/PROMPT_COMMAND: 读 $?，并无条件消费/清空 __errata_cmd
        （空行或 Ctrl-C 复用上一条的 $?，陈旧命令文本会造成错位归属）
        成功 → err hook-event --exit-code 0 --cwd $PWD --command C
               → cli/hook_event.go → cli/solved.go solvedHint()
@@ -92,7 +92,9 @@ B. shell hook（用户在 hooked shell 里跑任意命令）
               --seq S --stderr-file F --cwd D --command C
               → cli/hook_event.go → 读增量：从 offset 起读，取最后一个
               seq=S 哨兵之后的字节（找不到哨兵 = 还在 tee 管道里 →
-              宁可漏报也不错位）；seq=0 兼容旧版 hook（未重启 shell）
+              宁可漏报也不错位）；哨兵按序号匹配、忽略产品词负载，
+              改名前的旧 hook 配新二进制不丢记录（v0.1.9）；
+              seq=0 兼容更老的 无哨兵 hook（未重启 shell）
               → cli/record.go:20 recordFailure()
 
 recordFailure(commandLine, dir, stderr, cfg, hintOut):

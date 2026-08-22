@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"github.com/wumuwutu/dejavu/internal/config"
-	"github.com/wumuwutu/dejavu/internal/hooks"
+	"github.com/wumuwutu/errata/internal/config"
+	"github.com/wumuwutu/errata/internal/hooks"
 )
 
 var uninstallPurge bool
@@ -19,7 +19,7 @@ var uninstallPurge bool
 var uninstallCmd = &cobra.Command{
 	Use:   "uninstall",
 	Short: "Remove the shell hooks and (optionally) all data",
-	Long: "uninstall removes the dejavu hook block from your shell rc files\n" +
+	Long: "uninstall removes the errata hook block from your shell rc files\n" +
 		"(exactly what err init --write added), then asks whether to delete the\n" +
 		"data directory (default: keep). It cannot delete the binary itself —\n" +
 		"the last step is yours (uninstall red line, dev-guide §9).",

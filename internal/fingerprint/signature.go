@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// Languages dejavu fingerprints in v1 (dev-guide §6.5: MVP restraint).
+// Languages errata fingerprints in v1 (dev-guide §6.5: MVP restraint).
 const (
 	LangPython  = "python"
 	LangNode    = "node"

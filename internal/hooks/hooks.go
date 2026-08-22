@@ -11,10 +11,10 @@ import (
 	"strings"
 )
 
-//go:embed scripts/dejavu.zsh
+//go:embed scripts/errata.zsh
 var zshScript string
 
-//go:embed scripts/dejavu.bash
+//go:embed scripts/errata.bash
 var bashScript string
 
 // Supported shells for hooks, in display order.
@@ -57,6 +57,13 @@ func RCFile(shell string) (string, error) {
 // rcBlock is the exact block WriteRC appends, so uninstall can remove it
 // precisely (uninstall red line, dev-guide §9).
 func rcBlock(shell string) string {
+	return fmt.Sprintf("\n# errata shell hook — https://github.com/wumuwutu/errata\n%s\n", EvalLine(shell))
+}
+
+// legacyRCBlock is the block appended before the product rename (its
+// comment word and repo URL still say "dejavu"); RemoveRC must recognize
+// it too, so old installations uninstall cleanly.
+func legacyRCBlock(shell string) string {
 	return fmt.Sprintf("\n# dejavu shell hook — https://github.com/wumuwutu/dejavu\n%s\n", EvalLine(shell))
 }
 
@@ -109,6 +116,8 @@ func RemoveRC(shell string) (rcPath string, removed bool, err error) {
 	switch {
 	case strings.Contains(content, rcBlock(shell)):
 		out = strings.Replace(content, rcBlock(shell), "", 1)
+	case strings.Contains(content, legacyRCBlock(shell)):
+		out = strings.Replace(content, legacyRCBlock(shell), "", 1)
 	case strings.Contains(content, EvalLine(shell)+"\n"):
 		out = strings.Replace(content, EvalLine(shell)+"\n", "", 1)
 	case strings.Contains(content, EvalLine(shell)):

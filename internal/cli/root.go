@@ -8,17 +8,17 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/wumuwutu/dejavu/internal/config"
-	"github.com/wumuwutu/dejavu/internal/store"
+	"github.com/wumuwutu/errata/internal/config"
+	"github.com/wumuwutu/errata/internal/store"
 )
 
-// Version is the dejavu release version.
-const Version = "0.1.8"
+// Version is the errata release version.
+const Version = "0.1.9"
 
 var rootCmd = &cobra.Command{
 	Use:     "err",
-	Short:   "dejavu — a personal memory for terminal errors",
-	Long:    "err (dejavu) captures failing commands, fingerprints errors, remembers your fixes,\nand hands the fix back the next time the same error shows up.",
+	Short:   "errata — a personal memory for terminal errors",
+	Long:    "err (errata) captures failing commands, fingerprints errors, remembers your fixes,\nand hands the fix back the next time the same error shows up.",
 	Version: Version,
 	// The wrapper subcommand (err run) exits with the child's exit code;
 	// usage noise on its errors would be misleading. Errors are printed

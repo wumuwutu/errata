@@ -1,4 +1,4 @@
-module github.com/wumuwutu/dejavu
+module github.com/wumuwutu/errata
 
 go 1.27.0
 
