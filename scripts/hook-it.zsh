@@ -95,6 +95,19 @@ check "pollution probe recorded" test -n "$newid"
 check "signature unpolluted by err output" grep -qE '^signature: +ValueError: zz-pollution-probe$' "$TMP/shown.txt"
 check "command kept after err pending ran" grep -q "command:.*python3 .*fail3.py" "$TMP/shown.txt"
 
+# 8. Flag fidelity: a failing command's flags must survive verbatim into
+#    errors.command (an old hook once recorded 'rmdir -f tmp' as
+#    'rmdir tmp'). A missing-script python run exits 2 with a
+#    recognizable "can't open file" error.
+printf '%s\n' \
+  "python3 -u \"$TMP/no_such_script_xyz.py\"" \
+  'echo FLAG-DONE' \
+  | ZDOTDIR="$TMP/zdot" zsh -i >"$TMP/out5.txt" 2>&1
+fid=$("$ERR" pending --all 2>/dev/null | grep "can't open file" | awk '{print $1}')
+check "flag command recorded" test -n "$fid"
+"$ERR" show "$fid" >"$TMP/showf.txt" 2>&1
+check "flag preserved in command" grep -q "command:.*python3 -u .*no_such_script_xyz.py" "$TMP/showf.txt"
+
 if [ "$fails" -gt 0 ]; then
   echo "---"
   echo "$fails check(s) FAILED; session output:"
