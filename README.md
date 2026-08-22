@@ -17,6 +17,10 @@ ever uploaded.
 go install github.com/wumuwutu/errata/cmd/err@latest
 ```
 
+(While the repository is private, point Go at direct git fetching first:
+`go env -w GOPRIVATE=github.com/wumuwutu/*` — plus GitHub credentials in git,
+e.g. via `gh auth setup-git`.)
+
 This produces a single `err` binary. Requires Go 1.22+ (built with Go 1.27, CGO-free).
 
 ## Shell hook (recommended)
