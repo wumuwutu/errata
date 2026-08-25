@@ -162,13 +162,17 @@ can cost ~1.5s to a Windows Defender scan. `err fix` is unaffected.
 
 ## Current scope
 
-Deliberately small:
+Deliberately small — and staying that way:
 
 - Precise signatures for Python and Node; a conservative generic fallback records
-  other errors as `unknown` (Java/gcc/Go markers, shell builtins in any locale).
-  Output with no clear error marker is skipped — precision over recall.
+  other errors as `unknown` (Java/gcc/Go markers, shell builtins in any locale,
+  Ubuntu's command-not-found helper). Output with no clear error marker is
+  skipped — precision over recall.
 - Capture via the shell hook (zsh/bash) and `err run`.
-- No LLM features, reports, watch or MCP yet.
+- Single-user, local-first. **Not planned** (cut by design decision, see
+  `docs/dev-guide.md` §15 v0.4): embedding/LLM features (`err why`, weekly
+  reports), team sharing. If you need an AI explanation, paste the error into
+  your AI tool of choice — errata's job is to remember *your* fix.
 
 Internals for contributors: [docs/architecture.md](docs/architecture.md).
 
