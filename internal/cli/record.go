@@ -9,12 +9,18 @@ import (
 	"github.com/wumuwutu/errata/internal/fingerprint"
 	"github.com/wumuwutu/errata/internal/hint"
 	"github.com/wumuwutu/errata/internal/match"
+	"github.com/wumuwutu/errata/internal/redact"
 	"github.com/wumuwutu/errata/internal/store"
 )
 
 // recordFailure fingerprints a failed command's stderr, stores it, and
 // prints the restrained hit hint to hintOut when the error (or a similar
-// one) was seen before. Shared by err run and the shell hook path.
+// one) was seen before. Shared by err run, the shell hook path and
+// err watch.
+//
+// stderr is redacted before anything is derived from it, so neither the
+// stored raw sample, nor the signature, nor any hint can ever carry a
+// credential (privacy red line, dev-guide §9).
 //
 // Recording must never break the caller: any failure is silent.
 func recordFailure(commandLine, dir string, stderr []byte, cfg *config.Config, hintOut io.Writer) {
@@ -25,7 +31,8 @@ func recordFailure(commandLine, dir string, stderr []byte, cfg *config.Config, h
 		return // never record our own commands (e.g. err run inside a hooked shell)
 	}
 
-	lang, signature, fp := fingerprint.Fingerprint(string(stderr))
+	cleaned := redact.Bytes(stderr)
+	lang, signature, fp := fingerprint.Fingerprint(string(cleaned))
 	if signature == "" {
 		return // no recognizable error marker: skip, never guess
 	}
@@ -44,7 +51,7 @@ func recordFailure(commandLine, dir string, stderr []byte, cfg *config.Config, h
 	rec := &store.Error{
 		Fingerprint: fp,
 		Signature:   signature,
-		RawSample:   fingerprint.StripANSI(string(stderr)),
+		RawSample:   fingerprint.StripANSI(string(cleaned)),
 		Language:    lang,
 		Command:     scene.Command,
 		ProjectDir:  scene.Dir,
