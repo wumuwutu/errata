@@ -8,8 +8,12 @@ ever uploaded.
 ## Install
 
 ```sh
-go install github.com/wumuwutu/errata/cmd/err@latest
+go install -ldflags="-s -w" github.com/wumuwutu/errata/cmd/err@latest
 ```
+
+`-ldflags="-s -w"` strips the symbol table and DWARF info, shrinking the binary by
+~32% (16.7 MB → 11.3 MB) — worth it especially on WSL, where Windows Defender scans
+the binary on every exec and startup drops from ~1.5s to ~0.35s.
 
 (While the repository is private, point Go at direct git fetching first:
 `go env -w GOPRIVATE=github.com/wumuwutu/*` — plus GitHub credentials in git,
