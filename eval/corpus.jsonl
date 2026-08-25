@@ -19,13 +19,23 @@
 {"raw": "Error: connect ECONNREFUSED 192.168.1.10:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1278:16)\n", "language": "node", "group": "node-econnrefused"}
 {"raw": "  File \"/home/alice/proj/demo2.py\", line 3\n    if i > 5\n            ^\nSyntaxError: expected ':'\n", "language": "python", "group": "py-syntax-expected-colon"}
 {"raw": "  File \"/opt/svc/jobs/report.py\", line 88\n    if count > 10\n                ^\nSyntaxError: expected ':'\n", "language": "python", "group": "py-syntax-expected-colon"}
-{"raw": "Exception in thread \"main\" java.lang.NullPointerException: Cannot read field \"timeout\" because \"config\" is null\n\tat com.app.Main.main(Main.java:12)\n", "language": "unknown", "group": "java-npe"}
-{"raw": "Exception in thread \"worker-3\" java.lang.NullPointerException: Cannot read field \"timeout\" because \"config\" is null\n\tat com.app.Worker.run(Worker.java:88)\n", "language": "unknown", "group": "java-npe"}
-{"raw": "main.c:12:5: error: 'foo' undeclared (first use in this function)\n", "language": "unknown", "group": "gcc-undeclared"}
-{"raw": "main.c:47:2: error: 'foo' undeclared (first use in this function)\n", "language": "unknown", "group": "gcc-undeclared"}
+{"raw": "Exception in thread \"main\" java.lang.NullPointerException: Cannot read field \"timeout\" because \"config\" is null\n\tat com.app.Main.main(Main.java:12)\n", "language": "java", "group": "java-npe"}
+{"raw": "Exception in thread \"worker-3\" java.lang.NullPointerException: Cannot read field \"timeout\" because \"config\" is null\n\tat com.app.Worker.run(Worker.java:88)\n", "language": "java", "group": "java-npe"}
+{"raw": "main.c:12:5: error: 'foo' undeclared (first use in this function)\n", "language": "c", "group": "gcc-undeclared"}
+{"raw": "main.c:47:2: error: 'foo' undeclared (first use in this function)\n", "language": "c", "group": "gcc-undeclared"}
 {"raw": "bash[1234]: pyhton: command not found\n", "language": "unknown", "group": "shell-cmdnotfound"}
 {"raw": "bash[9871]: pyhton: command not found\n", "language": "unknown", "group": "shell-cmdnotfound"}
 {"raw": "Traceback (most recent call last):\n  File \"/home/alice/ml/train.py\", line 1, in <module>\n    import numpy\nModuleNotFoundError: No module named 'numpy'\n", "language": "python", "group": "py-module-numpy"}
 {"raw": "Traceback (most recent call last):\n  File \"/home/alice/ml/train.py\", line 1, in <module>\n    import torch\nModuleNotFoundError: No module named 'torch'\n", "language": "python", "group": "py-module-torch"}
 {"raw": "bash: cd: dsad: 没有那个文件或目录\n", "language": "unknown", "group": "shell-builtin-cd-zh"}
 {"raw": "bash: cd: projets: 没有那个文件或目录\n", "language": "unknown", "group": "shell-builtin-cd-zh"}
+{"raw": "Exception in thread \"main\" java.lang.ArithmeticException: / by zero\n\tat com.app.Calc.div(Calc.java:7)\n\tat com.app.Main.main(Main.java:12)\n", "language": "java", "group": "java-arith-divzero"}
+{"raw": "Exception in thread \"pool-1-thread-2\" java.lang.ArithmeticException: / by zero\n\tat com.app.Calc.div(Calc.java:31)\n", "language": "java", "group": "java-arith-divzero"}
+{"raw": "Exception in thread \"main\" java.lang.NullPointerException\n\tat com.app.Main.run(Main.java:10)\n\tat com.app.Main.main(Main.java:5)\n", "language": "java", "group": "java-npe-bare"}
+{"raw": "Exception in thread \"worker-1\" java.lang.NullPointerException\n\tat com.app.Main.run(Main.java:33)\n", "language": "java", "group": "java-npe-bare"}
+{"raw": "panic: runtime error: index out of range [3] with length 3\n\ngoroutine 1 [running]:\nmain.main()\n\t/home/alice/proj/main.go:12 +0x1f\n", "language": "go", "group": "go-panic-range"}
+{"raw": "panic: runtime error: index out of range [7] with length 8\n\ngoroutine 5 [running]:\nmain.worker(0x0)\n\t/srv/app/worker.go:44 +0x2a\n", "language": "go", "group": "go-panic-range"}
+{"raw": "# command-line-arguments\n./main.go:12:3: syntax error: unexpected newline, expecting comma or }\n", "language": "go", "group": "go-compile-syntax"}
+{"raw": "# example.com/proj\n./cmd/app/main.go:47:9: syntax error: unexpected newline, expecting comma or }\n", "language": "go", "group": "go-compile-syntax"}
+{"raw": "src/app.cpp:8:10: fatal error: 'boost/asio.hpp' file not found\n#include <boost/asio.hpp>\n         ^~~~~~~~~~~~~~~~~\n", "language": "c", "group": "c-clang-boost"}
+{"raw": "/opt/build/src/net/app.cpp:23:10: fatal error: 'boost/asio.hpp' file not found\n", "language": "c", "group": "c-clang-boost"}

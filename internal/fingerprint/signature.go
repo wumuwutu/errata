@@ -5,10 +5,14 @@ import (
 	"strings"
 )
 
-// Languages errata fingerprints in v1 (dev-guide §6.5: MVP restraint).
+// Languages errata fingerprints precisely; anything else is claimed by the
+// generic fallback extractor and reported as unknown.
 const (
 	LangPython  = "python"
 	LangNode    = "node"
+	LangJava    = "java"
+	LangGo      = "go"
+	LangC       = "c"
 	LangUnknown = "unknown"
 )
 
@@ -42,19 +46,27 @@ var (
 // return ok=false and let the error go unrecorded.
 type Extractor func(text string, disabled map[string]bool) (signature string, ok bool)
 
-// registry holds the language extractors in probe order. Python comes
-// first: its traceback marker is unambiguous, while Node's stack frames
-// could appear in other tools' output.
+// registry holds the language extractors in probe order — explicitly, as a
+// literal: init() runs in file-name order, which would make the probe order
+// an accident of the alphabet. Python comes first (its traceback marker is
+// unambiguous while Node's stack frames could appear in other tools'
+// output); the generic fallback is pinned last, because its markers would
+// otherwise claim Java/gcc/Go output before the precise extractors see it.
 var registry = []struct {
 	lang string
 	ex   Extractor
 }{
 	{LangPython, pythonSignature},
 	{LangNode, nodeSignature},
+	{LangJava, javaSignature},
+	{LangGo, goSignature},
+	{LangC, cSignature},
+	{LangUnknown, genericSignature}, // fallback: always last
 }
 
-// Register adds a language extractor. Supporting a new language is meant
-// to be one file (e.g. java.go) plus one Register call in its init().
+// Register appends a language extractor to the probe order (eval tooling
+// and tests). Production extractors belong in the registry literal above,
+// not in init() — see its comment.
 func Register(lang string, ex Extractor) {
 	registry = append(registry, struct {
 		lang string

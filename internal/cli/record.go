@@ -27,7 +27,7 @@ func recordFailure(commandLine, dir string, stderr []byte, cfg *config.Config, h
 
 	lang, signature, fp := fingerprint.Fingerprint(string(stderr))
 	if signature == "" {
-		return // not a recognizable Python/Node error: skip, never guess
+		return // no recognizable error marker: skip, never guess
 	}
 
 	dbPath, err := config.DBPath()

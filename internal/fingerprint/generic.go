@@ -84,8 +84,3 @@ func genericSignature(text string, disabled map[string]bool) (string, bool) {
 	}
 	return found, true
 }
-
-// Registered last: language-specific extractors claim their own first.
-func init() {
-	Register(LangUnknown, genericSignature)
-}

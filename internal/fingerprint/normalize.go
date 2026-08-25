@@ -3,8 +3,8 @@
 // numbers/PIDs/timestamps must hash identically; different errors must not.
 //
 // Precision beats recall (dev-guide §6.3): anything we cannot confidently
-// attribute to a supported language (Python/Node) yields an empty signature
-// and is skipped rather than guessed.
+// attribute to a supported language (Python/Node/Java/Go/C) yields an empty
+// signature and is skipped rather than guessed.
 package fingerprint
 
 import (
