@@ -1,0 +1,44 @@
+# goreleaser config for errata — tag push (v*) triggers the release via
+# .github/workflows/release.yml. Builds are CGO-free (modernc.org/sqlite),
+# so cross-compilation needs no toolchains.
+version: 2
+
+project_name: err
+
+builds:
+  - id: err
+    main: ./cmd/err
+    binary: err
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    env:
+      - CGO_ENABLED=0
+    # Strip symbol table/DWARF: ~32% smaller, and on WSL the per-exec
+    # Defender scan cost drops startup from ~1.5s to ~0.35s (v0.1.12).
+    ldflags:
+      - -s -w
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^Merge"
+
+release:
+  footer: |
+    ---
+
+    **Windows is not supported**: the capture engine is Unix-only (zsh/bash hooks, PTY passthrough). On Windows, use WSL.
+
+    Install with the script:
+    `curl -fsSL https://raw.githubusercontent.com/wumuwutu/errata/main/install.sh | sh`
