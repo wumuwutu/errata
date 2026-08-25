@@ -366,7 +366,7 @@ MVP 只做 **Python + Node** 两种报错的归一化；阶段 2 加 Java。三�
 | `err uninstall` | 干净卸载（询问是否保留数据） | 阶段 3 ✅ |
 | ~~`err mcp`~~ | ~~MCP server，暴露错误库给 AI Agent~~ | **【推迟】** 二期再议，见 §15 v0.4 |
 
-**已实现但不在原表的命令**（开发中根据实测反馈新增）：`err delete <id>`（删单条，y 确认）、`err clear`（清空，输入完整 yes 确认）、`err-eval`（指纹评测工具，独立二进制）。
+**已实现但不在原表的命令**（开发中根据实测反馈新增）：`err delete <id>`（删单条，y 确认）、`err clear`（清空，输入完整 yes 确认）、`err-eval`（指纹评测工具，独立二进制）、`err export`（错误库导出 Markdown，只读）、`err watch`（监听日志流捕获报错：stdin 管道或 tail 文件，流式场景无退出码，识别出错误即记录）。
 
 ---
 
@@ -569,3 +569,8 @@ MVP 只做 **Python + Node** 两种报错的归一化；阶段 2 加 Java。三�
   - **【单人模式定案】** 团队共享明确推迟（先不考虑协作，后续再议）；`err mcp` 随之推迟到二期视反馈决定。
   - 已实现状态标注进 §8 命令表与 §10 里程碑（截至 v0.1.13：阶段 0–3 完成，含实测反馈驱动的增量命令 `err delete`/`err clear`/保底识别/本地化支持）。
   - 实测驱动的设计修正（均已在代码落地）：success 检测从"同目录任意成功"收紧为"同程序+同目标参数"（§7.2 朴素设计被实测证伪）；归一化不再吞引号内值（模块名是错误身份，吞了违反 §6.3 precision）；提示样式定案为 `--err--` 前缀 + faint 基底 + 关键词配色（绿=解决信号/青=命令/红=破坏性确认）。
+- v0.5（代码 v0.1.14 时点的修订，作者拍板）：
+  - **指纹语言扩到 Python/Node/Java/Go/C**：§6.5 的"MVP 只做 Python+Node"完成历史使命；generic 保底提取器不变，注册表从 init() 改为显式有序字面量（init 按文件名字典序执行，探针顺序曾是字母表的意外）。
+  - **§9 隐私红线补课**：stderr 入库前过 internal/redact 脱敏层（URL 内嵌凭证、key=value 密钥、ghp_/sk-/AKIA…/xox… 等 token 前缀、JWT），规则集中单文件可审计。
+  - **新命令**：`err export`（错误库导出 Markdown，环境迁移场景的落地）、`err watch`（§3.1 第 5 条"轻量过渡方案"的落地——监听日志流，无退出码语义、识别出错误即记录）。
+  - **发布工程落地**（§16.3）：GoReleaser + GitHub Actions（tag 触发，linux/darwin × amd64/arm64，Windows 明确不支持），install.sh 一键脚本，test workflow 补 §17.4 的"CI 第一天就配"。

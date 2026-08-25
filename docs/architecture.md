@@ -15,6 +15,9 @@ internal/
 │   ├── run.go                 PTY 执行器：stdout 走 PTY、stderr tee 旁路录制、退出码透传
 │   └── context.go             现场捕获 SceneFor()：命令行、cwd、git HEAD、运行时版本、OS
 │
+├── watch（见 cli/watch.go）    捕获层 C：日志流监听（stdin 管道 / tail 文件），
+│                              无退出码语义，识别出错误即记录
+│
 ├── hooks/                     捕获层 B：shell hook（无感捕获）
 │   ├── scripts/errata.zsh     preexec/precmd + stderr tee 分流 + 命令边界哨兵；
 │   │                          成功路径由 __errata_failed_at 时间窗（SECONDS）门控
@@ -27,12 +30,25 @@ internal/
 ├── fingerprint/               指纹层：同一错误 → 同一指纹
 │   ├── fingerprint.go         管线入口 Fingerprint()：签名 → hex 指纹
 │   ├── normalize.go           ANSI 剥离 + 归一化规则（uuid/ts/ip/addr/path/val/num）
-│   ├── signature.go           语言注册表（Extractor/Register）+ python/node 精确提取器
+│   ├── signature.go           语言注册表：registry 字面量显式定序——
+│   │                          python, node, java, go, c，generic 代码中垫底
+│   │                          （init() 按文件名字典序执行，探针顺序不能交给字母表）；
+│   │                          python/node 精确提取器 + Extractor/Register
+│   ├── java.go / go.go / c.go Java（Exception in thread 的类名+消息模板；无消息
+│   │                          异常用栈顶帧）、Go（panic 行 / file.go:l:c 编译错误）、
+│   │                          C（gcc/clang 的 file:l:c error，含 clang fatal error）
+│   │                          精确提取器
 │   ├── generic.go             unknown 保底提取器：只信明确错误标记 + shell 内建
 │   │                          错误结构（shell: builtin: 消息，语言无关；操作数
-│   │                          置为 <ARG>），注册在最后，永不抢 python/node 的识别
+│   │                          置为 <ARG>），注册表显式垫底，永不抢精确识别
 │   └── simhash.go             自实现 64 位 SimHash（token 含 CJK 表意文字，
 │                              本地化消息不失分辨力）+ 海明距离（相似阈值 6）
+│
+├── redact/redact.go           脱敏层（§9 隐私红线）：stderr 入库/取签名前过一遍——
+│                              URL 内嵌凭证、key=value 密钥（password/token/secret/
+│                              api_key/authorization 等）、知名 token 前缀
+│                              （ghp_/gho_/github_pat_/sk-/AKIA…/xox…）、JWT，
+│                              统一掩码为 ***；规则保守且集中在这一个文件
 │
 ├── match/match.go             匹配层：Matcher 接口（Exact/Similar）+ SimHash 实现
 │
@@ -42,11 +58,18 @@ internal/
 │                              迁移 3：errors 重建为 AUTOINCREMENT（删除后 id 不复用）
 │
 ├── cli/                       命令层：cobra，基本每个文件一个命令
-│   ├── record.go              ★ 失败主管线 recordFailure（run/hook 两条捕获路共用）
+│   ├── record.go              ★ 失败主管线 recordFailure（run/hook/watch 三条
+│   │                          捕获路共用；写入前先过 redact 脱敏）
 │   ├── solved.go              成功检测 solvedHint（同程序且同目标参数成功
 │   │                          才提示"looks fixed"；precision 优先）
 │   ├── hook_event.go          err hook-event（隐藏命令，hook 的回调入口，
 │   │                          --seq 对应 hook 写入缓冲的 OSC 哨兵）
+│   ├── watch.go               err watch：stdin 管道或 tail 文件（从末尾起，
+│   │                          不回放历史）；行 → 块（空行/新错误标记切分，
+│   │                          静默 500ms 兜底 flush）→ 喂主管线；流无退出码，
+│   │                          识别出错误即记录（与 hook 路径的语义差异）
+│   ├── export.go              err export：错误库导出 Markdown（按项目分组、
+│   │                          组内时间正序；只读）
 │   ├── root.go                根命令、版本号、启动时懒归档过期 pending
 │   ├── confirm.go             破坏性命令的确认语义（delete 认 y，clear 只认完整 yes；
 │   │                          确认提示亮红 ANSI 91）
@@ -114,15 +137,27 @@ B. shell hook（用户在 hooked shell 里跑任意命令）
 
 recordFailure(commandLine, dir, stderr, cfg, hintOut):
   1. ignore 黑名单 / err 自身命令 → 跳过
-  2. fingerprint/fingerprint.go:9 Fingerprint()  → (lang, signature, hex)
-     提取顺序：python（精确）→ node（精确）→ unknown（保底，generic.go）。
+  2. redact/redact.go 脱敏：URL 内嵌凭证、key=value 密钥、知名 token
+     前缀、JWT → ***（raw_sample、签名、命中提示永远只见脱敏后内容）
+  3. fingerprint/fingerprint.go:9 Fingerprint()  → (lang, signature, hex)
+     提取顺序（注册表字面量显式定序）：python → node → java → go → c
+     → unknown（保底，generic.go）。
      签名空（无任何明确错误标记）→ 跳过（宁可漏报）
-  3. store.Open()（migrate 自动升级 schema）
-  4. cli/record.go:71 findHit(match.SimHash, fp) → 精确命中 or 相似降级
-  5. store/store.go:147 UpsertError() → 新错误建记录+pending；旧错误 count++
-  6. hint/hint.go Print() → ≤2 行灰色提示（见过 N 次/解法/相似错误），
+  4. store.Open()（migrate 自动升级 schema）
+  5. cli/record.go:71 findHit(match.SimHash, fp) → 精确命中 or 相似降级
+  6. store/store.go:147 UpsertError() → 新错误建记录+pending；旧错误 count++
+  7. hint/hint.go Print() → ≤2 行灰色提示（见过 N 次/解法/相似错误），
      命令名（err fix/err show）青色（ANSI 36）、解法绿色（32）、
      looks-fixed 只带错误编号（err #N），ASCII 短横线
+
+C. err watch（日志流监听）
+   cli/watch.go: 无参读 stdin 管道（docker logs -f app 2>&1 | err watch，
+   EOF 即退出），带参 tail 文件（Seek 到末尾，不回放历史，200ms 轮询）。
+   行按块切分（空行/新错误标记；follow 模式下静默 500ms 强制 flush，
+   否则日志里最后一条错误永远等不到终止符）→ 识别出签名即调
+   recordFailure("watch: <源>", ...)。流式场景没有退出码：识别出错误
+   文本就记录（与 hook 路径"非零退出码 + stderr 增长"的语义差异，
+   README 已注明）。Ctrl-C（SIGINT/SIGTERM）优雅退出并打印捕获统计。
 ```
 
 ## SQLite schema（迁移 1–3，见 internal/store/migrate.go）
@@ -135,7 +170,7 @@ recordFailure(commandLine, dir, stderr, cfg, hintOut):
 | fingerprint | 推导 | SimHash hex，UNIQUE；同错去重的键 |
 | signature | 推导 | 归一化后的错误签名（如 `TypeError: ... <VAL>`） |
 | raw_sample | 原始事实 | 最近一次出现的 stderr 原文（去 ANSI） |
-| language | 推导 | python / node / unknown（提取器判定） |
+| language | 推导 | python / node / java / go / c / unknown（提取器判定） |
 | command / project_dir / git_commit / runtime / os | 原始事实 | 现场五要素（git/runtime 尽力而为，可空） |
 | created_at / first_seen / last_seen | 原始事实 | 建条时间 / 首见 / 末见 |
 | count | 推导 | 出现次数（upsert 时 +1） |
@@ -161,18 +196,21 @@ recordFailure(commandLine, dir, stderr, cfg, hintOut):
 **errors_fts**（FTS5 虚表）：signature + solution 全文索引，insert/fix 时同步。
 **schema_version**：单行版本表；`Open()` 时按序补齐迁移。
 
-## 怎么加一门新语言（如 Java）
+## 怎么加一门新语言（如 Rust）
 
 注意分工：**不加任何文件，未知语言的错误也会被 generic.go 的保底提取器以
 `unknown` 记录**（前提：输出里有明确错误标记）。只有当你想要更精确的签名
 （提取异常类型+消息模板，而不是整行）时才需要：
 
-1. 新建 `internal/fingerprint/java.go`：实现
-   `func javaSignature(text string, disabled map[string]bool) (string, bool)`
+1. 新建 `internal/fingerprint/rust.go`：实现
+   `func rustSignature(text string, disabled map[string]bool) (string, bool)`
    （从 ANSI 剥离后的文本提取归一化签名；拿不准就返回 ok=false——precision 优先）。
-2. 文件里 `func init() { Register("java", javaSignature) }`。
-3. 加测试（仿 python/node 用例）；给 `eval/corpus.jsonl` 加语料并跑
-   `go run ./cmd/err-eval` 确认阈值 0 下 FP=0。
+2. 把它加进 `signature.go` 的 registry 字面量——位置即探针顺序，generic
+   必须永远垫底。**不要用 init() + Register()**：init 按文件名字典序执行，
+   探针顺序会变成字母表的意外（v0.1.14 起改为显式定序，signature_test.go
+   的 TestRegistryOrderLocked 锁定该顺序）。
+3. 加测试（仿 java/go/c 用例，含路径/行号漂移下同指纹的稳定性断言）；给
+   `eval/corpus.jsonl` 加语料并跑 `go run ./cmd/err-eval` 确认阈值 0 下 FP=0。
 
 ## 怎么加一个新命令
 
