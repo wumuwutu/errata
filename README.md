@@ -1,5 +1,7 @@
 # err (errata)
 
+[![test](https://github.com/wumuwutu/errata/actions/workflows/test.yml/badge.svg)](https://github.com/wumuwutu/errata/actions/workflows/test.yml)
+
 **A personal memory for terminal errors.** `err` captures failing commands, fingerprints the
 error, remembers how *you* fixed it — and hands the fix back the next time the same error
 shows up. Local-first: everything stays in a SQLite database on your machine, nothing is
