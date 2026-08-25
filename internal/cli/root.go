@@ -13,7 +13,7 @@ import (
 )
 
 // Version is the errata release version.
-const Version = "0.1.14"
+const Version = "0.1.15"
 
 var rootCmd = &cobra.Command{
 	Use:     "err",
