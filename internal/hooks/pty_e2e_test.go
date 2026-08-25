@@ -127,10 +127,17 @@ func (s *ptySession) transcript() string { return string(s.buf) }
 //
 //	python fails -> ls -> python fails -> vim -> vim (must stay quiet)
 //	-> python succeeds with a DIFFERENT target (must stay quiet too)
-//	-> the same script succeeds (must nudge, naming the SECOND error)
+//	-> python fails again -> the same script succeeds (must nudge,
+//	naming the SECOND error)
 //
 // and asserts every recorded error is attributed to the command that
 // actually triggered it.
+//
+// Since v0.1.12 the success path is gated by a per-session failure flag:
+// the first success after a failure spawns exactly one hook-event (the
+// nudge check), further successes spawn none — so a fixed re-run only
+// nudges when it is the first success after a failure, and the scenario
+// re-arms the gate with `false` (fails with no stderr, records nothing).
 func TestHookAttributionPTY(t *testing.T) {
 	if testing.Short() {
 		t.Skip("integration test")
@@ -164,13 +171,16 @@ func TestHookAttributionPTY(t *testing.T) {
 			}
 
 			s := startPTYSession(t, shell, bin, tmp)
-			s.send("python3 " + failA) // -> AttributeError, record #1
-			s.send("ls")
-			s.send("python3 " + failB)         // -> ModuleNotFoundError, record #2
-			s.vim(failA)                       // exits 0: different program, no nudge
-			s.vim(failB)                       // exits 0: same here
-			s.send("python3 -c 'print(1)'")    // same program, other target: no nudge
-			s.send("FIXED=1 python3 " + failB) // same program AND script: nudge #2
+			s.send("python3 " + failA)         // -> AttributeError, record #1; arms the success gate
+			s.send("ls")                       // gate open, other program: quiet; gate consumed
+			s.send("python3 " + failB)         // -> ModuleNotFoundError, record #2; re-arms
+			s.vim(failA)                       // exits 0: gate open, different program: quiet; consumed
+			s.vim(failB)                       // exits 0: gate already closed, not even a subprocess
+			s.send("python3 -c 'print(1)'")    // gate closed: quiet
+			s.send("false")                    // arms the gate, records nothing (no stderr)
+			s.send("python3 -c 'print(1)'")    // gate open, same program, other target: quiet; consumed
+			s.send("python3 " + failB)         // fails again (count 2 on #2); re-arms
+			s.send("FIXED=1 python3 " + failB) // gate open, same program AND script: nudge #2
 			// Ctrl-C at an empty prompt must not record anything against a
 			// stale command line (ec=130 reuse of $?).
 			if _, err := s.pt.Write([]byte{0x03}); err != nil {

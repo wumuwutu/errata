@@ -6,8 +6,10 @@
 #     per-session buffer.
 #   - preexec snapshots the buffer offset and the full command line, then
 #     writes an invisible OSC sentinel to stderr.
-#   - precmd reads $?: if the command failed and the buffer grew, a single
-#     `err hook-event` call does the fingerprinting/storage/hint in Go.
+#   - precmd reads $?: on failure with fresh stderr a single
+#     `err hook-event` call records the error; on the first success after
+#     a failure this session saw, one call checks whether a pending error
+#     just got fixed.
 #
 # Command attribution does NOT rely on the byte offset alone: tee flushes
 # asynchronously (and interactive shells write the prompt + input echo to
@@ -19,8 +21,11 @@
 # can never leak into the next command's capture. Keep the sentinel format
 # in sync with sentinelPrefix in internal/cli/hook_event.go.
 #
-# Performance: the success path runs zero subprocesses; the failure path
-# runs at most one `err` invocation.
+# Performance: a successful command's prompt path spawns zero
+# subprocesses unless this shell session saw a failure earlier (then
+# exactly one err call re-checks for a fixed pending and the gate closes
+# again — one success check per failure, hint or no hint); the failure
+# path runs at most one `err` invocation.
 # If the err binary is missing, everything below degrades to a no-op.
 
 command -v err >/dev/null 2>&1 || return 0
@@ -54,12 +59,19 @@ __errata_precmd() {
   [[ -n "$cmd" ]] || return 0
   if (( ec == 0 )); then
     # Success: maybe a pending error just got fixed (dev-guide 7.2
-    # DETECTED_SUCCESS). Cheap gate: no database file => nothing pending
-    # => no subprocess, the prompt path stays at zero cost.
+    # DETECTED_SUCCESS). Cheap gates, in order, so the common prompt path
+    # stays at zero subprocesses: this session must have seen a failing
+    # command (otherwise nothing pending here can have just been fixed),
+    # and the database must exist.
+    [[ -n "${__errata_saw_failure:-}" ]] || return 0
     [[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/errata/errata.db" ]] || return 0
+    # One check per failure: clear the flag whether or not a hint prints.
+    __errata_saw_failure=""
     err hook-event --exit-code 0 --cwd "$PWD" --command "$cmd" 2>/dev/null
     return 0
   fi
+  # Failure: arm the success gate, then record as before.
+  __errata_saw_failure=1
   local size
   size=$(wc -c < "$__errata_sess.err" 2>/dev/null)
   size=${size//[[:space:]]/}

@@ -34,8 +34,9 @@ file it touched and never appends twice). fish and other shells are not supporte
 `err init fish` says so and exits cleanly.
 
 The hook is invisible by design: stderr still reaches your terminal byte-for-byte
-(it is tee'd, never intercepted), the success path spawns zero extra processes
-(<50ms prompt budget), and a missing `err` binary degrades the hook to a no-op.
+(it is tee'd, never intercepted), the success path spawns zero extra processes in
+sessions that have seen no failure (and exactly one re-check per failure otherwise),
+and a missing `err` binary degrades the hook to a no-op.
 An invisible sentinel written at command start delimits each command's stderr in the
 session buffer, so a slow tee (or output of an `err ...` command you ran in between)
 can never attribute one command's error to another.
@@ -113,6 +114,12 @@ err fix to record the solution
 ```
 
 at most once per error per day. Unrelated successes (`ls`, `vim`, …) never trigger it.
+
+Since v0.1.12 this check is armed only by a failure seen in the *current* shell
+session: a pending error left over from yesterday's terminal no longer nudges on the
+first successful command of a new one. That trade buys a zero-subprocess prompt path
+for failure-free sessions — on WSL every `err` exec can cost ~1.5s to a Windows
+Defender scan. `err fix` is unaffected.
 
 ## How it works
 
