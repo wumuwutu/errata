@@ -181,6 +181,12 @@ func TestHookAttributionPTY(t *testing.T) {
 			if _, err := s.pt.Write([]byte{0x03}); err != nil {
 				t.Fatal(err)
 			}
+			// SIGINT makes the shell flush the pending input queue — a
+			// command written right now can be discarded before readline
+			// re-arms (CI timing). Wait for the fresh prompt first.
+			if !s.readUntil("DVP> ", 20*time.Second) {
+				t.Fatal("no prompt after Ctrl-C")
+			}
 			s.send("echo E2E-DONE")
 			s.close()
 

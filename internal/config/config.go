@@ -41,12 +41,18 @@ const DefaultArchiveAfterDays = 30
 const DefaultSuccessWindowMinutes = 5
 
 // ConfigDir returns the config directory, honoring XDG_CONFIG_HOME.
+// os.UserConfigDir ignores XDG on darwin (it would return ~/Library/
+// Application Support) — errata is a dotfiles-style tool and the docs
+// promise ~/.config, so resolve XDG/HOME by hand on every platform.
 func ConfigDir() (string, error) {
-	base, err := os.UserConfigDir()
+	if d := os.Getenv("XDG_CONFIG_HOME"); d != "" {
+		return filepath.Join(d, appName), nil
+	}
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(base, appName), nil
+	return filepath.Join(home, ".config", appName), nil
 }
 
 // DataDir returns the data directory, honoring XDG_DATA_HOME.

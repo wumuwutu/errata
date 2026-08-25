@@ -23,8 +23,9 @@ var (
 	addrRe  = regexp.MustCompile(`\b0x[0-9a-fA-F]+\b`)
 	winPath = regexp.MustCompile(`\b[A-Za-z]:\\(?:[^\\/:*?"<>|\s]+\\)*[^\\/:*?"<>|\s]*`)
 	// Unix absolute path: a "/" preceded by start/whitespace/opening
-	// punctuation, followed by at least one path segment.
-	unixPathRe = regexp.MustCompile(`(^|[\s(:=,"'<{\[])/(?:[\w.~+\-]+/)*[\w.~+\-]+`)
+	// punctuation, followed by at least one path segment. Segments may
+	// contain '@' (homebrew's python@3.14, npm's @scope/pkg).
+	unixPathRe = regexp.MustCompile(`(^|[\s(:=,"'<{\[])/(?:[\w.~+\-@]+/)*[\w.~+\-@]+`)
 	squoteRe   = regexp.MustCompile(`'[^']*'`)
 	dquoteRe   = regexp.MustCompile(`"[^"]*"`)
 	bquoteRe   = regexp.MustCompile("`[^`]*`")

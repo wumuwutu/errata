@@ -19,6 +19,10 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # ubuntu runners lack zsh; the hook tests need both shells.
+      - run: sudo apt-get install -y zsh
+        if: runner.os == 'Linux'
+
       # macOS runs the hook integration tests against its stock bash 3.2 —
       # real-machine coverage for the oldest supported shell.
       - run: go test ./cmd/... ./internal/...

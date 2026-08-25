@@ -23,6 +23,7 @@ func TestNormalize(t *testing.T) {
 		{"dial 192.168.1.10 refused", "dial <IP> refused"},
 		{"pointer 0x7fff5fbff8ac dead", "pointer <ADDR> dead"},
 		{"open /home/alice/proj/train.py failed", "open <PATH> failed"},
+		{"run /opt/homebrew/Cellar/python@3.14/3.14.6/bin/python3 failed", "run <PATH> failed"}, // '@' is a path char (homebrew, npm @scope)
 		{`open C:\Users\bob\app.py failed`, "open <PATH> failed"},
 		{"No module named 'requests'", "No module named 'requests'"}, // quoted values kept (identity)
 		{`key "secret-token" missing`, `key "secret-token" missing`},
