@@ -100,4 +100,16 @@ add-zsh-hook preexec __errata_preexec
 add-zsh-hook precmd __errata_precmd
 
 # stderr diversion last, so hook installation noise is not recorded.
-exec 2> >(tee -a "$__errata_sess.err" >&2)
+#
+# tee reads a fifo as a disowned background job: background jobs get their
+# own process group under job control, so Ctrl-C at the prompt (SIGINT to
+# the foreground group) never reaches the recorder. The proc-substitution
+# form ( >(tee ...) ) shares the foreground group — tee died to Ctrl-C and
+# the next prompt write to the dead pipe could take the shell down with
+# SIGPIPE (observed killing interactive bash 5.2 on ubuntu 24.04).
+__errata_fifo="$__errata_sess.fifo"
+if command -v tee >/dev/null 2>&1 && mkfifo "$__errata_fifo" 2>/dev/null; then
+  tee -a "$__errata_sess.err" < "$__errata_fifo" >&2 2>/dev/null &
+  disown 2>/dev/null
+  exec 2> "$__errata_fifo"
+fi

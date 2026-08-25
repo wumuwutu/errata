@@ -1,10 +1,12 @@
 package hooks
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,8 +20,11 @@ type ptySession struct {
 	t   *testing.T
 	pt  *os.File
 	cmd *exec.Cmd
-	buf []byte
-	pos int
+
+	mu      sync.Mutex
+	buf     []byte
+	pos     int
+	pumpErr error // set when the pump goroutine's Read fails
 }
 
 func startPTYSession(t *testing.T, shell, bin, tmp string) *ptySession {
@@ -41,6 +46,13 @@ func startPTYSession(t *testing.T, shell, bin, tmp string) *ptySession {
 		if err := os.WriteFile(filepath.Join(zdot, ".zshrc"), []byte(rc), 0o644); err != nil {
 			t.Fatal(err)
 		}
+		// Ubuntu's global /etc/zsh/zshrc runs compinit, which stops for an
+		// interactive y/n answer when a fpath directory is group-writable
+		// (as on CI runners) — and the prompt never comes. .zshenv is read
+		// before the global zshrc, so skip it there.
+		if err := os.WriteFile(filepath.Join(zdot, ".zshenv"), []byte("skip_global_compinit=1\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 		env = append(env, "ZDOTDIR="+zdot)
 		cmd = exec.Command("zsh", "-i")
 	} else {
@@ -60,8 +72,30 @@ func startPTYSession(t *testing.T, shell, bin, tmp string) *ptySession {
 		t.Fatalf("start pty: %v", err)
 	}
 	s := &ptySession{t: t, pt: f, cmd: cmd}
+	// A pump goroutine owns all PTY reads: os.File.Read on a PTY master is
+	// a blocking syscall that can outlive SetReadDeadline (deadlines are a
+	// no-op on non-polled files), which once turned a missing prompt into a
+	// 10-minute hang on CI. With the pump, readUntil only ever polls the
+	// buffer and its deadline is real.
+	go func() {
+		chunk := make([]byte, 4096)
+		for {
+			n, err := f.Read(chunk)
+			if n > 0 {
+				s.mu.Lock()
+				s.buf = append(s.buf, chunk[:n]...)
+				s.mu.Unlock()
+			}
+			if err != nil {
+				s.mu.Lock()
+				s.pumpErr = err
+				s.mu.Unlock()
+				return
+			}
+		}
+	}()
 	if !s.readUntil("DVP> ", 20*time.Second) {
-		t.Fatalf("%s: shell never showed a prompt", shell)
+		t.Fatalf("%s: shell never showed a prompt; transcript:\n%s", shell, s.transcript())
 	}
 	return s
 }
@@ -70,20 +104,17 @@ func startPTYSession(t *testing.T, shell, bin, tmp string) *ptySession {
 // consumed output) or the deadline passes.
 func (s *ptySession) readUntil(marker string, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
-	chunk := make([]byte, 4096)
 	for time.Now().Before(deadline) {
-		if i := strings.Index(string(s.buf[s.pos:]), marker); i >= 0 {
+		s.mu.Lock()
+		i := strings.Index(string(s.buf[s.pos:]), marker)
+		if i >= 0 {
 			s.pos += i + len(marker)
+		}
+		s.mu.Unlock()
+		if i >= 0 {
 			return true
 		}
-		_ = s.pt.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
-		n, err := s.pt.Read(chunk)
-		if n > 0 {
-			s.buf = append(s.buf, chunk[:n]...)
-		}
-		if err != nil && !os.IsTimeout(err) {
-			return false
-		}
+		time.Sleep(50 * time.Millisecond)
 	}
 	return false
 }
@@ -94,7 +125,7 @@ func (s *ptySession) send(line string) {
 		s.t.Fatalf("write %q: %v", line, err)
 	}
 	if !s.readUntil("DVP> ", 20*time.Second) {
-		s.t.Fatalf("no prompt after %q", line)
+		s.t.Fatalf("no prompt after %q; transcript:\n%s", line, s.transcript())
 	}
 }
 
@@ -120,7 +151,14 @@ func (s *ptySession) close() {
 	_ = s.cmd.Wait()
 }
 
-func (s *ptySession) transcript() string { return string(s.buf) }
+func (s *ptySession) transcript() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pumpErr != nil {
+		return fmt.Sprintf("%s\n[pump died: %v]", s.buf, s.pumpErr)
+	}
+	return string(s.buf)
+}
 
 // TestHookAttributionPTY reproduces the exact user-reported scenario in a
 // hooked interactive shell on a real PTY:
@@ -178,14 +216,26 @@ func TestHookAttributionPTY(t *testing.T) {
 			s.send("FIXED=1 python3 " + failB) // same program AND script: nudge #2
 			// Ctrl-C at an empty prompt must not record anything against a
 			// stale command line (ec=130 reuse of $?).
-			if _, err := s.pt.Write([]byte{0x03}); err != nil {
-				t.Fatal(err)
+			//
+			// Delivered as a real PTY ^C byte. A ^C that lands while the
+			// shell is still redrawing its prompt can be eaten, so settle
+			// and retry — extra ^Cs at an empty prompt are no-ops. (This
+			// also guards the hook's tee shielding: an unshielded tee
+			// died to the SIGINT group broadcast and took bash 5.2 down
+			// with it via SIGPIPE.)
+			gotPrompt := false
+			for range 5 {
+				time.Sleep(300 * time.Millisecond)
+				if _, err := s.pt.Write([]byte{0x03}); err != nil {
+					t.Fatal(err)
+				}
+				if s.readUntil("DVP> ", 5*time.Second) {
+					gotPrompt = true
+					break
+				}
 			}
-			// SIGINT makes the shell flush the pending input queue — a
-			// command written right now can be discarded before readline
-			// re-arms (CI timing). Wait for the fresh prompt first.
-			if !s.readUntil("DVP> ", 20*time.Second) {
-				t.Fatal("no prompt after Ctrl-C")
+			if !gotPrompt {
+				t.Fatalf("no prompt after Ctrl-C; transcript:\n%s", s.transcript())
 			}
 			s.send("echo E2E-DONE")
 			s.close()

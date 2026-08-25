@@ -176,7 +176,7 @@ err run python train.py
 
 - bash：DEBUG trap + PROMPT_COMMAND；zsh：preexec / precmd 钩子。
 - 每条命令前记录命令文本与时间戳；命令后读 `$?`，非零且 stderr 非空时触发记录。
-- stderr 捕获：`exec 2> >(tee -a <buffer> >&2)` 子 shell 分流——原样显示 + 落一份到缓冲区。
+- stderr 捕获：mkfifo + 后台 disown 的 tee 读 fifo，shell `exec 2> fifo`——原样显示 + 落一份到缓冲区。后台任务在 job control 下有独立进程组，Ctrl-C 的 SIGINT 群发打不到 tee（早期 `2> >(tee …)` 进程替换形态与 shell 同前台进程组，Ctrl-C 会打死 tee，SIGPIPE 连锁杀掉 bash 5.2 的 shell 本身，v0.1.14 CI 实测暴露）。
 - 安装方式：用户 `.zshrc` 加一行 `eval "$(err init zsh)"`（direnv/starship 同款标准做法）。
 
 **不选方案 C（eBPF/全局进程监控）**：跨平台地狱、权限要求高，过度工程。
