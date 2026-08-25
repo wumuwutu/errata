@@ -48,20 +48,14 @@ export PATH='$TMP/shim:$(dirname "$ERR")':"\$PATH"
 eval "\$('$ERR' init zsh)"
 EOF
 
-# Since v0.1.12 the success path only calls err when this session has seen
-# a failure (one check per failure, then the gate closes again), so every
-# success meant to exercise solvedHint is preceded by a failure: `false`
-# re-arms the gate without recording anything (it fails with no stderr).
+# Drive an interactive zsh: failing command, success, same failure again.
 printf '%s\n' \
   'false; echo "EC=$?"' \
   "python3 \"$TMP/fail.py\"" \
   'true' \
   "python3 -c 'print(1)'" \
-  "python3 \"$TMP/fail.py\"" \
-  'false' \
-  "python3 -c 'print(1)'" \
-  'false' \
   "FIXED=1 python3 \"$TMP/fail.py\"" \
+  "python3 \"$TMP/fail.py\"" \
   'echo SESSION-DONE' \
   | ZDOTDIR="$TMP/zdot" zsh -i >"$TMP/out.txt" 2>&1
 
@@ -82,12 +76,12 @@ fi
 check "hit hint shown" grep -q 'occurrence #2' "$TMP/out.txt"
 # 5. Session actually completed (hook did not hang the shell).
 check "session completed" grep -q 'SESSION-DONE' "$TMP/out.txt"
-# 6. Success detection: a success nudges only when the gate is armed (a
-#    failure seen earlier in this session) AND it shares the program AND
-#    a target argument (the script) with the pending error: 'true' and
-#    `python3 -c 'print(1)'` (same program, other target) stay quiet even
-#    with the gate armed, while the FIXED=1 re-run of the same script
-#    nudges — exactly once.
+# 6. Success detection: within the 5-minute window after a failure every
+#    success is checked, but a success nudges only when it shares the
+#    program AND a target argument (the script) with the pending error:
+#    'true' and `python3 -c 'print(1)'` (same program, other target) stay
+#    quiet, while the FIXED=1 re-run of the same script nudges — exactly
+#    once.
 check "success hint shown" grep -q 'looks fixed' "$TMP/out.txt"
 hint_count=$(grep -c 'looks fixed' "$TMP/out.txt")
 check "success hint not repeated" test "$hint_count" -eq 1
@@ -144,18 +138,23 @@ printf '%s\n' \
 check "success-only session completed" grep -q 'QUIET-DONE' "$TMP/out6.txt"
 check "no err process on success-only prompts" bash -c "! grep -q hook-event '$SHIM_LOG'"
 
-# 10. The gate opens on failure and closes after one success check:
-#     fail, then two successes -> exactly one success-path hook-event.
+# 10. Window semantics: a failure opens a 5-minute window in which EVERY
+#     success re-checks (fail -> true -> true = two success hook-events),
+#     and an expired window closes the gate again (the third line
+#     back-dates __errata_failed_at by hand, simulating a failure long
+#     ago; the prompt path then unsets it and stays quiet).
 : > "$SHIM_LOG"
 printf '%s\n' \
   "python3 \"$TMP/fail.py\"" \
   'true' \
   'true' \
+  '__errata_failed_at=$((SECONDS - 9999))' \
+  'true' \
   'echo GATE-DONE' \
   | ZDOTDIR="$TMP/zdot" zsh -i >"$TMP/out7.txt" 2>&1
 check "gate session completed" grep -q 'GATE-DONE' "$TMP/out7.txt"
 gate_count=$(grep -c 'hook-event --exit-code 0' "$SHIM_LOG" || true)
-check "one success check per failure" test "$gate_count" -eq 1
+check "in-window successes check, expired window closes" test "$gate_count" -eq 2
 
 if [ "$fails" -gt 0 ]; then
   echo "---"

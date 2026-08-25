@@ -3,8 +3,8 @@
 # Same design as the zsh hook: stderr is tee'd (passthrough + recording),
 # the DEBUG trap snapshots the buffer offset and command line once per
 # command line, PROMPT_COMMAND checks $? and calls `err hook-event` — on
-# failure with fresh stderr, and on the first success after this session
-# saw a failure (a pending error may just have been fixed).
+# failure with fresh stderr, and on success within 5 minutes of a failure
+# this session saw (a pending error may just have been fixed).
 #
 # Command attribution does NOT rely on the byte offset alone: tee flushes
 # asynchronously (and interactive shells write the prompt + input echo to
@@ -16,9 +16,9 @@
 # sentinel format in sync with sentinelPrefix in internal/cli/hook_event.go.
 #
 # Performance: a successful command's prompt path spawns zero
-# subprocesses unless this shell session saw a failure earlier (then
-# exactly one err call re-checks for a fixed pending and the gate closes
-# again — one success check per failure, hint or no hint).
+# subprocesses unless this shell session saw a failure in the last 5
+# minutes (then each success pays one err exec re-checking for a fixed
+# pending — exactly when a nudge is plausible).
 # If the err binary is missing, everything below degrades to a no-op.
 
 command -v err >/dev/null 2>&1 || return 0
@@ -66,17 +66,22 @@ __errata_prompt() {
     # Success: maybe a pending error just got fixed (dev-guide 7.2
     # DETECTED_SUCCESS). Cheap gates, in order, so the common prompt path
     # stays at zero subprocesses: this session must have seen a failing
-    # command (otherwise nothing pending here can have just been fixed),
-    # and the database must exist.
-    [ -n "${__errata_saw_failure:-}" ] || return "$ec"
+    # command within the last 5 minutes (matching the default
+    # success_window_minutes; hardcoded here, the Go config is not read),
+    # and the database must exist. The window is NOT consumed by a
+    # success — vim saving the file must not eat the fixed re-run's
+    # nudge; solvedHint's same-program+target matching rejects the rest.
+    [ -n "${__errata_failed_at:-}" ] || return "$ec"
+    if [ $((SECONDS - __errata_failed_at)) -gt 300 ]; then
+      __errata_failed_at=
+      return "$ec"
+    fi
     [ -f "${XDG_DATA_HOME:-$HOME/.local/share}/errata/errata.db" ] || return "$ec"
-    # One check per failure: clear the flag whether or not a hint prints.
-    __errata_saw_failure=
     err hook-event --exit-code 0 --cwd "$PWD" --command "$cmd" 2>/dev/null
     return "$ec"
   fi
-  # Failure: arm the success gate, then record as before.
-  __errata_saw_failure=1
+  # Failure: (re)open the success window, then record as before.
+  __errata_failed_at=$SECONDS
   local size
   size=$(wc -c < "$__errata_sess.err" 2>/dev/null)
   size=${size//[[:space:]]/}

@@ -7,9 +7,9 @@
 #   - preexec snapshots the buffer offset and the full command line, then
 #     writes an invisible OSC sentinel to stderr.
 #   - precmd reads $?: on failure with fresh stderr a single
-#     `err hook-event` call records the error; on the first success after
-#     a failure this session saw, one call checks whether a pending error
-#     just got fixed.
+#     `err hook-event` call records the error; on success within 5 minutes
+#     of a failure this session saw, one call checks whether a pending
+#     error just got fixed.
 #
 # Command attribution does NOT rely on the byte offset alone: tee flushes
 # asynchronously (and interactive shells write the prompt + input echo to
@@ -22,10 +22,10 @@
 # in sync with sentinelPrefix in internal/cli/hook_event.go.
 #
 # Performance: a successful command's prompt path spawns zero
-# subprocesses unless this shell session saw a failure earlier (then
-# exactly one err call re-checks for a fixed pending and the gate closes
-# again — one success check per failure, hint or no hint); the failure
-# path runs at most one `err` invocation.
+# subprocesses unless this shell session saw a failure in the last 5
+# minutes (then each success pays one err exec re-checking for a fixed
+# pending — exactly when a nudge is plausible); the failure path runs at
+# most one `err` invocation.
 # If the err binary is missing, everything below degrades to a no-op.
 
 command -v err >/dev/null 2>&1 || return 0
@@ -61,17 +61,22 @@ __errata_precmd() {
     # Success: maybe a pending error just got fixed (dev-guide 7.2
     # DETECTED_SUCCESS). Cheap gates, in order, so the common prompt path
     # stays at zero subprocesses: this session must have seen a failing
-    # command (otherwise nothing pending here can have just been fixed),
-    # and the database must exist.
-    [[ -n "${__errata_saw_failure:-}" ]] || return 0
+    # command within the last 5 minutes (matching the default
+    # success_window_minutes; hardcoded here, the Go config is not read),
+    # and the database must exist. The window is NOT consumed by a
+    # success — vim saving the file must not eat the fixed re-run's
+    # nudge; solvedHint's same-program+target matching rejects the rest.
+    [[ -n "${__errata_failed_at:-}" ]] || return 0
+    if (( SECONDS - __errata_failed_at > 300 )); then
+      __errata_failed_at=""
+      return 0
+    fi
     [[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/errata/errata.db" ]] || return 0
-    # One check per failure: clear the flag whether or not a hint prints.
-    __errata_saw_failure=""
     err hook-event --exit-code 0 --cwd "$PWD" --command "$cmd" 2>/dev/null
     return 0
   fi
-  # Failure: arm the success gate, then record as before.
-  __errata_saw_failure=1
+  # Failure: (re)open the success window, then record as before.
+  __errata_failed_at=$SECONDS
   local size
   size=$(wc -c < "$__errata_sess.err" 2>/dev/null)
   size=${size//[[:space:]]/}

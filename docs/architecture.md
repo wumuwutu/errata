@@ -17,7 +17,7 @@ internal/
 │
 ├── hooks/                     捕获层 B：shell hook（无感捕获）
 │   ├── scripts/errata.zsh     preexec/precmd + stderr tee 分流 + 命令边界哨兵；
-│   │                          成功路径由会话变量 __errata_saw_failure 门控
+│   │                          成功路径由 __errata_failed_at 时间窗（SECONDS）门控
 │   ├── scripts/errata.bash    DEBUG trap + PROMPT_COMMAND（兼容 bash 3.2）；
 │   │                          成功路径门控逻辑同 zsh
 │   ├── hooks.go               脚本嵌入（go:embed）、rc 写入/精准移除
@@ -85,15 +85,18 @@ B. shell hook（用户在 hooked shell 里跑任意命令）
        也永远不会越过哨兵进入本命令的增量（v0.1.5 修复命令错位）
      precmd/PROMPT_COMMAND: 读 $?，并无条件消费/清空 __errata_cmd
        （空行或 Ctrl-C 复用上一条的 $?，陈旧命令文本会造成错位归属）
-       成功 → 仅当 __errata_saw_failure=1（本 shell 会话此前亲眼见过
-              失败命令，v0.1.12 起）且 db 文件存在时才调用
-              err hook-event --exit-code 0 --cwd $PWD --command C；
-              调用后标志清零——每次失败只换一次成功检查，提示与否都清。
-              会话内无失败时成功路径零子进程（WSL 上 Defender 按文件
-              大小扫描被执行的二进制，每次 err 启动 wall-time 可达
-              1.5s，而每条命令的 prompt 都可能走到这里）。
-              代价：跨会话 pending（旧终端失败、新终端首条成功）不再
-              触发 looks-fixed；err fix 手动路径不受影响
+       成功 → 仅当 __errata_failed_at 非空且距现在 ≤300s 才调用
+              err hook-event --exit-code 0 --cwd $PWD --command C
+              （本会话上次失败后的 5 分钟窗口，用 SECONDS 内建变量
+              计时、零子进程，v0.1.12 起；窗口与 success_window_minutes
+              默认值一致，shell 侧写死不读配置。窗口内每次成功都检查
+              ——vim 存盘的成功不会吃掉修好重跑的提示，无关成功由
+              solvedHint 的"同程序+同目标"拒掉；超窗直接跳过并清掉
+              标志，回到零子进程。无失败会话的 prompt 路径零子进程：
+              WSL 上 Defender 按文件大小扫描被执行的二进制，每次
+              err 启动 wall-time 可达 1.5s，而每条命令的 prompt 都
+              可能走到这里。代价：跨会话 pending（旧终端失败、新终端
+              首条成功）不再触发 looks-fixed；err fix 手动路径不受影响）
               → cli/hook_event.go → cli/solved.go solvedHint()
               （同目录 5 分钟内有 pending，且成功命令与报错命令同程序
                （python3==python）且共享"目标参数"（剥掉程序名和 flag 后的
