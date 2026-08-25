@@ -40,14 +40,37 @@ case "$arch" in
   *)             fail "unsupported architecture: $arch" ;;
 esac
 
-if [ "${ERR_VERSION:-}" ]; then
-  tag="v${ERR_VERSION#v}"
+# asset_id NAME — print the release-asset id of NAME from the release JSON
+# on stdin (an asset's id precedes its name; the release's own id is never
+# followed by a "name" line for a tarball, and uploader objects have none).
+asset_id() {
+  awk -v want="$1" '
+    /^[[:space:]]*"id":/ { id=$2; gsub(/[^0-9]/, "", id) }
+    $0 ~ "\"name\": \"" want "\"" { print id; exit }'
+}
+
+if [ "${GITHUB_TOKEN:-}" ]; then
+  # Authenticated (private-repo) path: the browser URLs answer 404 to API
+  # tokens, so resolve and download through the API instead.
+  api="https://api.github.com/repos/$REPO"
+  if [ "${ERR_VERSION:-}" ]; then
+    tag="v${ERR_VERSION#v}"
+    release_json=$(dl "$api/releases/tags/$tag") || fail "release $tag not found"
+  else
+    release_json=$(dl "$api/releases/latest") || fail "cannot resolve the latest release"
+    tag=$(printf '%s' "$release_json" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)
+  fi
+  [ "$tag" ] || fail "cannot resolve the release tag"
 else
-  # Follow the /releases/latest redirect: no API call, no rate limit.
-  tag=$(curl -fsSIL -o /dev/null -w '%{url_effective}' ${GITHUB_TOKEN:+-H "Authorization: Bearer $GITHUB_TOKEN"} \
-    "https://github.com/$REPO/releases/latest" | sed 's/.*\///') || fail "cannot resolve the latest release"
+  if [ "${ERR_VERSION:-}" ]; then
+    tag="v${ERR_VERSION#v}"
+  else
+    # Follow the /releases/latest redirect: no API call, no rate limit.
+    tag=$(curl -fsSIL -o /dev/null -w '%{url_effective}' \
+      "https://github.com/$REPO/releases/latest" | sed 's/.*\///') || fail "cannot resolve the latest release"
+  fi
+  [ "$tag" ] || fail "cannot resolve the latest release"
 fi
-[ "$tag" ] || fail "cannot resolve the latest release"
 version="${tag#v}"
 
 tarball="err_${version}_${os}_${arch}.tar.gz"
@@ -55,8 +78,16 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
 echo "install: downloading err $tag ($os/$arch)"
-dl "https://github.com/$REPO/releases/download/$tag/$tarball" -o "$tmp/$tarball" || fail "download failed"
-dl "https://github.com/$REPO/releases/download/$tag/checksums.txt" -o "$tmp/checksums.txt" || fail "checksum download failed"
+if [ "${GITHUB_TOKEN:-}" ]; then
+  for name in "$tarball" checksums.txt; do
+    id=$(printf '%s' "$release_json" | asset_id "$name")
+    [ "$id" ] || fail "asset $name not found in release $tag"
+    dl -H "Accept: application/octet-stream" "$api/releases/assets/$id" -o "$tmp/$name" || fail "download of $name failed"
+  done
+else
+  dl "https://github.com/$REPO/releases/download/$tag/$tarball" -o "$tmp/$tarball" || fail "download failed"
+  dl "https://github.com/$REPO/releases/download/$tag/checksums.txt" -o "$tmp/checksums.txt" || fail "checksum download failed"
+fi
 
 want=$(awk -v f="$tarball" '$2 == f {print $1}' "$tmp/checksums.txt")
 [ "$want" ] || fail "no checksum found for $tarball"
