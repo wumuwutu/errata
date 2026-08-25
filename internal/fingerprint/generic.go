@@ -25,6 +25,10 @@ var genericMarkers = []*regexp.Regexp{
 	regexp.MustCompile(`\bcommand not found\b`),
 	regexp.MustCompile(`\bNo such file or directory\b`),
 	regexp.MustCompile(`\bPermission denied\b`),
+	// Ubuntu/Debian command-not-found helper:
+	// "Command 'pip' not found, but can be installed with: ..."
+	// (different shape from the shell's own "bash: x: command not found")
+	regexp.MustCompile(`^Command '[^']+' not found\b`),
 }
 
 // threadRe targets the one quoted-but-volatile value in the generic

@@ -38,6 +38,10 @@ func TestGenericFallbackHits(t *testing.T) {
 		// existing signatures do not move.
 		{"shell builtin english keeps keyword signature", "bash: cd: /nope: No such file or directory\n",
 			"bash: cd: <PATH>: No such file or directory"},
+		// Ubuntu/Debian command-not-found helper output (two lines; the
+		// "sudo apt install ..." suggestion line must not be picked).
+		{"ubuntu command-not-found helper", "Command 'pip' not found, but can be installed with:\nsudo apt install python3-pip\n",
+			"Command 'pip' not found, but can be installed with:"},
 	}
 	for _, c := range cases {
 		lang, sig, fp := Fingerprint(c.raw)
