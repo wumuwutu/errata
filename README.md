@@ -66,6 +66,10 @@ no-op.
 An invisible sentinel written at command start delimits each command's stderr in the
 session buffer, so a slow tee (or output of an `err ...` command you ran in between)
 can never attribute one command's error to another.
+The hook also appends each command line to a per-session log (`sess-<pid>.cmds`, one
+`epoch<TAB>command` line, written with a shell builtin — zero subprocesses on bash ≥ 4.2
+and zsh); that log is the data source for the `err fix` solution drafts below, and the
+7-day session cleanup covers it.
 
 ## Quick start
 
@@ -79,6 +83,17 @@ err run python train.py
 # Fix it, then record the fix (no argument = the error you just hit;
 # a one-line summary is shown, then you type the solution):
 err fix -m "LD_LIBRARY_PATH was polluted by conda; conda deactivate and reinstall"
+
+# In a hooked shell, plain `err fix` also drafts candidates from what you
+# ran between the error and now — type the number to adopt one as-is, or
+# anything else for a handwritten solution (draft_enabled: false turns
+# this off; err run / piped sessions simply show no drafts):
+err fix
+# err: fixing #3: ModuleNotFoundError: No module named 'numpy'
+#   at ~/proj · last seen 2026-08-26 21:04 · cmd: python3 train.py
+#   since the error you ran:
+#     1. pip install numpy
+# solution> 1
 
 # The next time the same error recurs — even from a different path, with
 # different line numbers — a two-line gray hint appears under the traceback

@@ -20,11 +20,18 @@ internal/
 │
 ├── hooks/                     捕获层 B：shell hook（无感捕获）
 │   ├── scripts/errata.zsh     preexec/precmd + stderr tee 分流 + 命令边界哨兵；
-│   │                          成功路径由 __errata_failed_at 时间窗（SECONDS）门控
+│   │                          成功路径由 __errata_failed_at 时间窗（SECONDS）门控；
+│   │                          preexec 追加命令日志 sess-$$.cmds（epoch<TAB>命令，
+│   │                          内建 printf 零子进程，err fix 草稿数据源）
 │   ├── scripts/errata.bash    DEBUG trap + PROMPT_COMMAND（兼容 bash 3.2）；
-│   │                          成功路径门控逻辑同 zsh
+│   │                          成功路径门控逻辑同 zsh；命令日志同 zsh
+│   │                          （bash 3.2 无 EPOCHSECONDS/printf %T，退化为
+│   │                          每条命令一次 date fork，仅该平台）
 │   ├── hooks.go               脚本嵌入（go:embed）、rc 写入/精准移除
 │   ├── sessions.go            CleanStaleSessions：清理 7 天前的 session 缓冲
+│   │                          （sess-* 前缀同时覆盖 .err/.fifo/.cmds）；
+│   │                          SessionsDir/CommandsLogPath（与脚本里的
+│   │                          __errata_dir/sess-$$.cmds 保持同步）
 │   └── *_test.go              真实 shell 集成测试 + PTY 端到端测试
 │
 ├── fingerprint/               指纹层：同一错误 → 同一指纹
@@ -60,6 +67,12 @@ internal/
 ├── cli/                       命令层：cobra，基本每个文件一个命令
 │   ├── record.go              ★ 失败主管线 recordFailure（run/hook/watch 三条
 │   │                          捕获路共用；写入前先过 redact 脱敏）
+│   ├── draft.go               err fix 解法草稿（dev-guide §7.3 命令历史推断）：
+│   │                          按 ERRATA_SESSION 定位本会话 sess-<pid>.cmds，
+│   │                          取 last_seen 之后的命令，漏斗过滤（噪音查看类/
+│   │                          err 自身/失败命令本身剔除；装包与环境变更 >
+│   │                          同程序 > 其他；去重后至多 3 条 faint 编号候选），
+│   │                          输入序号即采纳入库；err run/管道/跨会话静默无草稿
 │   ├── solved.go              成功检测 solvedHint（同程序且同目标参数成功
 │   │                          才提示"looks fixed"；precision 优先）
 │   ├── hook_event.go          err hook-event（隐藏命令，hook 的回调入口，
@@ -101,8 +114,9 @@ A. err run python app.py
 
 B. shell hook（用户在 hooked shell 里跑任意命令）
    scripts/errata.{zsh,bash}
-     preexec/DEBUG: 快照 stderr 缓冲偏移 + 命令行，然后向 stderr 写一个
-       不可见 OSC 哨兵（\x1b]6973;errata;<seq>\a，终端静默忽略）。
+     preexec/DEBUG: 快照 stderr 缓冲偏移 + 命令行，并把该行追加到
+       sess-$$.cmds（epoch<TAB>命令；err fix 草稿数据源），然后向 stderr
+       写一个不可见 OSC 哨兵（\x1b]6973;errata;<seq>\a，终端静默忽略）。
        哨兵在 tee 管道里 FIFO 排在所有滞留字节之后——tee 异步落盘再慢
        （WSL 实测可达秒级），前一条命令的 stderr/prompt 回显/err 自身输出
        也永远不会越过哨兵进入本命令的增量（v0.1.5 修复命令错位）
@@ -181,7 +195,7 @@ C. err watch（日志流监听）
 |---|---|
 | error_id | 关联 errors.id |
 | solution | 用户确认的解法（原始事实） |
-| draft / commands_between / git_diff_ref | 预留（§7.3 草稿机制，未实现） |
+| draft / commands_between / git_diff_ref | 预留字段；§7.3 草稿改为 err fix 时即时计算、不落库（v0.1.16 起命令历史推断已实现，LLM 压缩已砍） |
 | created_at | 记录时间 |
 
 **pending** — 状态机（§7.2）：
