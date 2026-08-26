@@ -12,15 +12,20 @@ func TestCleanStaleSessions(t *testing.T) {
 	now := time.Now()
 
 	stale := filepath.Join(dir, "sess-111.err")
+	staleCmds := filepath.Join(dir, "sess-111.cmds")
 	fresh := filepath.Join(dir, "sess-222.err")
 	other := filepath.Join(dir, "unrelated.txt")
-	for _, f := range []string{stale, fresh, other} {
+	for _, f := range []string{stale, staleCmds, fresh, other} {
 		if err := os.WriteFile(f, []byte("x"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
 	old := now.Add(-2 * SessionMaxAge)
 	if err := os.Chtimes(stale, old, old); err != nil {
+		t.Fatal(err)
+	}
+	// The draft command log shares the sess- prefix and the same cleanup.
+	if err := os.Chtimes(staleCmds, old, old); err != nil {
 		t.Fatal(err)
 	}
 	// An ancient non-sess file must be left alone.
@@ -33,6 +38,9 @@ func TestCleanStaleSessions(t *testing.T) {
 	}
 	if _, err := os.Stat(stale); !os.IsNotExist(err) {
 		t.Error("stale sess file should be removed")
+	}
+	if _, err := os.Stat(staleCmds); !os.IsNotExist(err) {
+		t.Error("stale sess .cmds file should be removed")
 	}
 	if _, err := os.Stat(fresh); err != nil {
 		t.Error("fresh sess file should survive")

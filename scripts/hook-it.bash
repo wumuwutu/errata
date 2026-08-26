@@ -42,6 +42,7 @@ chmod +x "$TMP/shim/err"
 cat > "$TMP/rc" <<EOF
 export XDG_DATA_HOME='$XDG_DATA_HOME'
 export XDG_CONFIG_HOME='$XDG_CONFIG_HOME'
+export XDG_RUNTIME_DIR='$TMP/run'
 export PATH='$TMP/shim:$(dirname "$ERR")':"\$PATH"
 eval "\$('$ERR' init bash)"
 EOF
@@ -185,6 +186,15 @@ printf '%s\n' \
 check "gate session completed" grep -q 'GATE-DONE' "$TMP/out7.txt"
 gate_count=$(grep -c 'hook-event --exit-code 0' "$SHIM_LOG" || true)
 check "in-window successes check, expired window closes" test "$gate_count" -eq 2
+
+# 15. Command log for err fix drafts (dev-guide §7.3): the hook appends
+#     one `epoch<TAB>command` line per command to sess-$$.cmds, so fix can
+#     show what you ran between the error and the fix.
+cmds_file=$(ls "$TMP/run"/errata-*/sess-*.cmds 2>/dev/null | head -1)
+check "command log written" test -n "$cmds_file"
+check "command log format is epoch TAB command" \
+  awk -F'\t' '$1 ~ /^[0-9]+$/ && NF >= 2 {f=1} END {exit !f}' "$cmds_file"
+check "command log captured the failing command" grep -q 'fail\.py' "$cmds_file"
 
 if [ "$fails" -gt 0 ]; then
   echo "---"

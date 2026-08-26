@@ -30,6 +30,10 @@ type Config struct {
 	// command in the same directory counts as "probably fixed it"
 	// (dev-guide §7.2). 0 or negative disables the success prompt.
 	SuccessWindowMinutes int
+	// DraftEnabled controls the solution draft in err fix: candidates
+	// inferred from the commands run between the error and the fix
+	// (dev-guide §7.3).
+	DraftEnabled bool
 }
 
 // DefaultArchiveAfterDays is the pending-error archival horizon (dev-guide
@@ -114,6 +118,7 @@ func Load() (*Config, error) {
 		HintEnabled:          true,
 		ArchiveAfterDays:     DefaultArchiveAfterDays,
 		SuccessWindowMinutes: DefaultSuccessWindowMinutes,
+		DraftEnabled:         true,
 	}
 	if v.IsSet("hint.enabled") {
 		cfg.HintEnabled = v.GetBool("hint.enabled")
@@ -123,6 +128,9 @@ func Load() (*Config, error) {
 	}
 	if v.IsSet("success_window_minutes") {
 		cfg.SuccessWindowMinutes = v.GetInt("success_window_minutes")
+	}
+	if v.IsSet("draft_enabled") {
+		cfg.DraftEnabled = v.GetBool("draft_enabled")
 	}
 	return cfg, nil
 }

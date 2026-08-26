@@ -10,6 +10,10 @@
 #     `err hook-event` call records the error; on success within 5 minutes
 #     of a failure this session saw, one call checks whether a pending
 #     error just got fixed.
+#   - preexec also appends the command line to a per-session log
+#     (sess-$$.cmds, one `epoch<TAB>command` line per command) so
+#     `err fix` can draft a solution from what you ran between the error
+#     and the fix (dev-guide §7.3). A single builtin printf, no subprocess.
 #
 # Command attribution does NOT rely on the byte offset alone: tee flushes
 # asynchronously (and interactive shells write the prompt + input echo to
@@ -33,6 +37,12 @@ command -v err >/dev/null 2>&1 || return 0
 # Marker for err doctor (hook loaded in this shell).
 export ERRATA_HOOK=zsh
 
+# Session id consumed by `err fix` to find this shell's command log.
+export ERRATA_SESSION=$$
+
+# EPOCHSECONDS for the command log (builtin, no subprocess per command).
+zmodload zsh/datetime 2>/dev/null
+
 __errata_dir="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/errata-$(id -u 2>/dev/null || echo u)"
 mkdir -p "$__errata_dir" 2>/dev/null && chmod 700 "$__errata_dir" 2>/dev/null
 __errata_sess="$__errata_dir/sess-$$"
@@ -43,11 +53,12 @@ __errata_preexec() {
   __errata_off=${__errata_off//[[:space:]]/}
   __errata_off=${__errata_off:-0}
   __errata_cmd="$1"
+  # Command log for `err fix` drafts (dev-guide §7.3): epoch<TAB>command.
+  printf '%s\t%s\n' "${EPOCHSECONDS:-0}" "$__errata_cmd" >> "$__errata_sess.cmds" 2>/dev/null
   # Command-boundary sentinel (invisible OSC escape; see header comment).
   __errata_seq=$(( ${__errata_seq:-0} + 1 ))
   printf '\033]6973;errata;%s\007' "$__errata_seq" >&2
 }
-
 __errata_precmd() {
   local ec=$?
   # Consume the command line unconditionally: an empty line or Ctrl-C

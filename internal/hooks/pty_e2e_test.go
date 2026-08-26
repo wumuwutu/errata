@@ -32,6 +32,9 @@ func startPTYSession(t *testing.T, shell, bin, tmp string) *ptySession {
 	env := append(os.Environ(),
 		"XDG_DATA_HOME="+filepath.Join(tmp, "data"),
 		"XDG_CONFIG_HOME="+filepath.Join(tmp, "conf"),
+		// Isolate the hook's session dir too — otherwise tests share
+		// /tmp/errata-<uid> with the developer's real sessions.
+		"XDG_RUNTIME_DIR="+filepath.Join(tmp, "run"),
 		"TERM=xterm",
 	)
 	var cmd *exec.Cmd

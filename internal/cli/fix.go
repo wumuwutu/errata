@@ -56,7 +56,17 @@ var fixCmd = &cobra.Command{
 		// solution will be attached to, before asking for it.
 		printFixTarget(cmd.ErrOrStderr(), target)
 
-		solution, err := readSolution(cmd.InOrStdin(), cmd.ErrOrStderr(), fixMessage)
+		// Solution draft (dev-guide §7.3): in an interactive hooked
+		// session, show what was run between the error and now as
+		// numbered candidates. Silent no-op otherwise.
+		cfg, _ := config.Load() // defaults on error; drafts are best-effort
+		var drafts []string
+		if (cfg == nil || cfg.DraftEnabled) && fixMessage == "" && isTerminal(cmd.InOrStdin()) {
+			drafts = solutionDrafts(target)
+			printDrafts(cmd.ErrOrStderr(), drafts)
+		}
+
+		solution, err := readSolution(cmd.InOrStdin(), cmd.ErrOrStderr(), fixMessage, drafts)
 		if err != nil {
 			return err
 		}
@@ -130,9 +140,19 @@ func printTargetSummary(w io.Writer, verb string, e *store.Error) {
 		termx.Truncate(orDash(e.Command), 60))))
 }
 
+// isTerminal reports whether in is an interactive terminal (the only
+// place drafts are shown and picked).
+func isTerminal(in io.Reader) bool {
+	f, ok := in.(*os.File)
+	return ok && term.IsTerminal(int(f.Fd()))
+}
+
 // readSolution resolves the solution text: -m flag wins, then piped stdin,
-// then an interactive prompt. Empty solutions are rejected.
-func readSolution(in io.Reader, out io.Writer, flagValue string) (string, error) {
+// then an interactive prompt. At the prompt a bare number adopts that
+// draft candidate as-is (no second edit — a wrong pick is redone with
+// another err fix); anything else is the handwritten solution. Empty
+// solutions are rejected.
+func readSolution(in io.Reader, out io.Writer, flagValue string, drafts []string) (string, error) {
 	if s := strings.TrimSpace(flagValue); s != "" {
 		return s, nil
 	}
@@ -151,8 +171,18 @@ func readSolution(in io.Reader, out io.Writer, flagValue string) (string, error)
 	if err != nil && len(line) == 0 {
 		return "", err
 	}
-	if s := strings.TrimSpace(line); s != "" {
-		return s, nil
+	s := strings.TrimSpace(line)
+	if s == "" {
+		return "", errors.New("empty solution")
 	}
-	return "", errors.New("empty solution")
+	return pickDraftSolution(s, drafts), nil
+}
+
+// pickDraftSolution interprets one interactive input line: a bare number
+// adopts that draft candidate, anything else is the handwritten solution.
+func pickDraftSolution(s string, drafts []string) string {
+	if n, err := strconv.Atoi(s); err == nil && n >= 1 && n <= len(drafts) {
+		return drafts[n-1]
+	}
+	return s
 }

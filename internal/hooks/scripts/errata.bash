@@ -15,6 +15,12 @@
 # straggler bytes, and hook-event only reads what follows it. Keep the
 # sentinel format in sync with sentinelPrefix in internal/cli/hook_event.go.
 #
+# preexec also appends the command line to a per-session log
+# (sess-$$.cmds, one `epoch<TAB>command` line per command) so `err fix`
+# can draft a solution from what you ran between the error and the fix
+# (dev-guide §7.3). A single builtin printf — no subprocess on bash >= 4.2
+# (bash 3.2 falls back to one `date` fork per command, nowhere else).
+#
 # Performance: a successful command's prompt path spawns zero
 # subprocesses unless this shell session saw a failure in the last 5
 # minutes (then each success pays one err exec re-checking for a fixed
@@ -26,10 +32,24 @@ command -v err >/dev/null 2>&1 || return 0
 # Marker for err doctor (hook loaded in this shell).
 export ERRATA_HOOK=bash
 
+# Session id consumed by `err fix` to find this shell's command log.
+export ERRATA_SESSION=$$
+
 __errata_dir="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/errata-$(id -u 2>/dev/null || echo u)"
 mkdir -p "$__errata_dir" 2>/dev/null && chmod 700 "$__errata_dir" 2>/dev/null
 __errata_sess="$__errata_dir/sess-$$"
 : >> "$__errata_sess.err" 2>/dev/null
+
+# Epoch source for the command log, probed once at load: EPOCHSECONDS on
+# bash >= 5, printf's %(%s)T on bash >= 4.2, `date` (one fork per command)
+# only on bash 3.2 which has neither.
+if [ -n "${EPOCHSECONDS:-}" ]; then
+  __errata_epoch() { __errata_now=$EPOCHSECONDS; }
+elif printf -v __errata_now '%(%s)T' -1 2>/dev/null && [ "${__errata_now:-0}" -gt 0 ] 2>/dev/null; then
+  __errata_epoch() { printf -v __errata_now '%(%s)T' -1; }
+else
+  __errata_epoch() { __errata_now=$(date +%s); }
+fi
 
 __errata_preexec() {
   # Only the first simple command of a line snapshots; the flag is
@@ -47,6 +67,9 @@ __errata_preexec() {
   __errata_cmd=$(HISTTIMEFORMAT= builtin history 1 2>/dev/null)
   __errata_cmd=${__errata_cmd#*[0-9]  }
   [ -n "$__errata_cmd" ] || __errata_cmd="$BASH_COMMAND"
+  # Command log for `err fix` drafts (dev-guide §7.3): epoch<TAB>command.
+  __errata_epoch
+  printf '%s\t%s\n' "$__errata_now" "$__errata_cmd" >> "$__errata_sess.cmds" 2>/dev/null
   # Command-boundary sentinel (invisible OSC escape; see header comment).
   __errata_seq=$(( ${__errata_seq:-0} + 1 ))
   printf '\033]6973;errata;%s\007' "$__errata_seq" >&2

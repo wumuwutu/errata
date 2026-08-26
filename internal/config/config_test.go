@@ -76,6 +76,29 @@ func TestLoadMissingConfig(t *testing.T) {
 	if cfg.ArchiveAfterDays != DefaultArchiveAfterDays {
 		t.Fatalf("ArchiveAfterDays = %d, want %d", cfg.ArchiveAfterDays, DefaultArchiveAfterDays)
 	}
+	if !cfg.DraftEnabled {
+		t.Fatal("draft_enabled should default to true")
+	}
+}
+
+func TestDraftEnabledConfigurable(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	cfgDir := filepath.Join(dir, appName)
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.yaml"),
+		[]byte("draft_enabled: false\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DraftEnabled {
+		t.Fatal("draft_enabled: false not honored")
+	}
 }
 
 func TestArchiveAfterDaysConfigurable(t *testing.T) {

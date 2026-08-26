@@ -82,13 +82,13 @@ func TestPrintFixTarget(t *testing.T) {
 }
 
 func TestReadSolutionFlagAndPipe(t *testing.T) {
-	if s, err := readSolution(strings.NewReader(""), &bytes.Buffer{}, "  direct fix  "); err != nil || s != "direct fix" {
+	if s, err := readSolution(strings.NewReader(""), &bytes.Buffer{}, "  direct fix  ", nil); err != nil || s != "direct fix" {
 		t.Fatalf("flag: %q %v", s, err)
 	}
-	if s, err := readSolution(strings.NewReader("piped fix\n"), &bytes.Buffer{}, ""); err != nil || s != "piped fix" {
+	if s, err := readSolution(strings.NewReader("piped fix\n"), &bytes.Buffer{}, "", nil); err != nil || s != "piped fix" {
 		t.Fatalf("pipe: %q %v", s, err)
 	}
-	if _, err := readSolution(strings.NewReader("\n"), &bytes.Buffer{}, ""); err == nil {
+	if _, err := readSolution(strings.NewReader("\n"), &bytes.Buffer{}, "", nil); err == nil {
 		t.Fatal("empty piped solution must be rejected")
 	}
 }
