@@ -3,3 +3,4 @@ kimi-export-session_*.md
 /dist/
 *.test
 tmp/
+docs/
